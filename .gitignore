@@ -1,0 +1,6 @@
+dist/
+artifacts/
+node_modules/
+test-results/
+data/cache/
+*.log

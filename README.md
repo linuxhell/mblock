@@ -14,6 +14,11 @@ Bloqueador experimental para **Chrome, Edge e Firefox**, com foco em bloqueio na
 - Registra diagnósticos de uma aba por 15 minutos: requisições, erros de rede, correspondência nativa de regras quando disponível, origem dos filtros, seletores aplicados, limites e sinais de anti-adblock.
 - Exporta JSON para análise, sem enviar os logs automaticamente. Cookies, cabeçalhos, corpos de requisição e valores de parâmetros não são coletados.
 - Inclui uma correção específica para o carregador anti-adblock observado no FC Portables em 11/11/2026. Sua assinatura de URL e o comportamento de fallback têm teste de regressão; isso não certifica todos os fluxos ou versões futuras do site.
+- Interface em inglês, português do Brasil e chinês simplificado, com detecção inicial do idioma e seletor manual. O ícone é um escudo preto com M vermelho.
+- Doação opcional via PayPal para `jv12802@gmail.com`, com textos e link nos três idiomas. Não há pagamento dentro da extensão nem abertura automática do PayPal.
+- Assistente local que identifica assinaturas conhecidas de AntiAdblockCore, Ad Inserter e da família BlockAdBlock/FuckAdBlock, informa confiança e oferece a correção empacotada quando a assinatura verificada do FC Portables está presente.
+
+O assistente inicial é **heurístico, não uma IA generativa**. Não promete identificar versões ocultas, gerar regras arbitrárias ou validar automaticamente qualquer site. Uma IA para investigar mecanismos novos precisa de um componente adicional e de um ciclo de teste e reversão; esse recurso não está concluído nesta alfa.
 
 ## Instalação de teste
 
