@@ -53,7 +53,7 @@ function renderLogs() {
   for (const e of entries) {
     const r = node('tr'); r.append(node('td', new Date(e.at).toLocaleTimeString(localeTag())), node('td', e.type, e.level === 'error' ? 'error' : ''));
     r.append(node('td', e.url || e.error || e.host || e.signal || JSON.stringify(Object.fromEntries(Object.entries(e).filter(([k]) => !['at', 'type', 'level'].includes(k))))));
-    const cell = node('td'); if (e.ruleId) { const b = node('button', '#' + e.ruleId); b.onclick = busy(b, async () => { const rule = await call('explain_rule', { id: e.ruleId }); const safe = rule ? { ...rule, origins: rule.origins.slice(0, 30), note: t('Até 30 origens exibidas; o JSON exportado seleciona as origens por domínio.') } : { note: t('Regra indisponível; a lista pode ter sido atualizada.') }; $('#rule-detail').textContent = JSON.stringify(safe, null, 2); $('#rule-details').open = true; }); cell.append(b); } r.append(cell); $('#events').append(r);
+    const cell = node('td'); if (e.ruleId) { const b = node('button', '#' + e.ruleId); b.onclick = busy(b, async () => { const rule = e.type === 'native_rule_match_during_update' ? null : await call('explain_rule', { id: e.ruleId, generation: e.generation }); const safe = rule ? { ...rule, origins: rule.origins.slice(0, 30), note: t('Até 30 origens exibidas; o JSON exportado seleciona as origens por domínio.') } : { note: t('Regra indisponível; a lista pode ter sido atualizada.') }; $('#rule-detail').textContent = JSON.stringify(safe, null, 2); $('#rule-details').open = true; }); cell.append(b); } r.append(cell); $('#events').append(r);
   }
 }
 async function refreshLogs() { logs = await call('logs'); renderLogs(); }

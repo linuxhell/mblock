@@ -56,7 +56,8 @@ try {
  assert.equal((await call('state')).settings.genericCosmetic,false);
  assert.equal(await worker.evaluate(async()=>JSON.stringify(await chrome.declarativeNetRequest.getDynamicRules())),rulesBefore);passed.push('atomic native rejection leaves settings and rules unchanged');
  await call('settings',{patch:{genericCosmetic:true}});await call('rollback');assert.equal((await call('state')).settings.genericCosmetic,false);passed.push('rollback restores previous settings and rules');
- const report=await call('export');assert.equal(report.schema,'mblock-diagnostic-v1');assert.ok(report.matchedRules.length);assert.equal(report.privacy.queryValues,false);passed.push('structured diagnostic export includes source provenance');
+ await site.reload();await site.waitForFunction(()=>window.essentialLoaded===true);await site.waitForTimeout(200);
+ const report=await call('export');assert.equal(report.schema,'mblock-diagnostic-v1');assert.ok(report.matchedRules.some(r=>r.origins?.length));assert.ok(report.matchedRules.some(r=>r.available===false));assert.equal(report.metadata.settings,undefined);assert.equal(report.privacy.queryValues,false);passed.push('diagnostic provenance is tied to the matching ruleset generation');
  await call('diagnostic_stop');assert.equal((await call('state')).activeDiagnostic,null);
  const fc=await context.newPage();
  await context.route('https://www.fcportables.com/__mblock_fixture',route=>route.fulfill({contentType:'text/html',body:`<!doctype html><title>FC loader fixture</title><h1>Test content</h1><meta name="antiadblockcore-verification" content="fixture"><script id="antiadblock-core-js" crossorigin="anonymous" onerror="window.fallbackRan=true" onload="if(!window.__tlm&&!window.__tlx)window.fallbackRan=true" src="https://z9snqc.fcportables.com/4245c2/4b7ea0/main.fb71facc6f58dac3.min.js?ver=3.7.1"></script>`}));

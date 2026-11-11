@@ -11,7 +11,7 @@ import { BUILD_TARGET } from './shared/platform.js';
 const api = globalThis.browser || chrome;
 const dnr = api.declarativeNetRequest;
 let settings, metadata, target, activeDiagnostic = null, journal, mutation = Promise.resolve(), updating = false;
-let initPromise, flushTimer, diagnosticAttached = false, diagCount = 0;
+let initPromise, flushTimer, diagnosticAttached = false, diagCount = 0, rulesChanging = false;
 const cssByDocument = new Map();
 const area = api.storage.session || api.storage.local;
 function serial(fn) { const p = mutation.then(fn, fn); mutation = p.catch(() => {}); return p; }
@@ -27,7 +27,8 @@ function targetName() { return BUILD_TARGET; }
 function availableLimit() { return Math.min(30000, dnr.MAX_NUMBER_OF_DYNAMIC_RULES || 5000); }
 function allRules(compiled, config) { return [...compiled.rules, ...builtInRules(config), ...controlRules(config)].map((rule, i) => ({ ...rule, id: i + 1 })); }
 function snapshot(compiled, config, sources, texts) { return { at: new Date().toISOString(), target, compiled, rules: allRules(compiled, config), settings: config, sources, texts }; }
-async function activate(next, previous, saveSettings = true) {
+async function activate(...args) { rulesChanging = true; try { return await installSnapshot(...args); } finally { rulesChanging = false; } }
+async function installSnapshot(next, previous, saveSettings = true) {
   const oldRules = await dnr.getDynamicRules();
   if (next.rules.length > availableLimit()) throw new Error('Limite de regras dinâmicas excedido; configuração anterior mantida.');
   const unsafe = next.rules.filter(r => !['block', 'allow', 'allowAllRequests', 'upgradeScheme'].includes(r.action.type)).length;
@@ -131,7 +132,7 @@ function diagnosticEvent(type, request, detail = {}) {
 }
 const onRequest = r => diagnosticEvent('request', r);
 const onRequestError = r => diagnosticEvent('network_error', r, { error: String(r.error).slice(0, 200) });
-const onMatch = info => diagnosticEvent('native_rule_match', info.request, { ruleId: info.rule.ruleId, rulesetId: info.rule.rulesetId });
+const onMatch = info => diagnosticEvent(rulesChanging ? 'native_rule_match_during_update' : 'native_rule_match', info.request, { ruleId: info.rule.ruleId, rulesetId: info.rule.rulesetId, generation: rulesChanging ? null : metadata?.at });
 function attachDiagnostic() {
   if (diagnosticAttached || !activeDiagnostic) return;
   const filter = { urls: ['http://*/*', 'https://*/*'], tabId: activeDiagnostic.tabId };
@@ -182,14 +183,15 @@ async function exportReport() {
   const { settings: privateSettings, ...publicMetadata } = metadata;
   publicMetadata.report = { ...publicMetadata.report };
   if (publicMetadata.report.custom) publicMetadata.report.custom = { lines: publicMetadata.report.custom.lines, network: publicMetadata.report.custom.network, cosmetic: publicMetadata.report.custom.cosmetic, unsupported: publicMetadata.report.custom.unsupported, note: 'Custom filter content omitted' };
-  const ruleIds = [...new Set(journal.entries.filter(x => x.type === 'native_rule_match').map(x => x.ruleId))].slice(0, 200);
+  const ruleRefs = [...new Map(journal.entries.filter(x => x.type === 'native_rule_match').map(x => [x.generation + ':' + x.ruleId, { id: x.ruleId, generation: x.generation }])).values()].slice(-200);
   const matchedRules = [];
-  for (const id of ruleIds) {
+  for (const { id, generation } of ruleRefs) {
+    if (generation !== metadata.at) { matchedRules.push({ id, generation, available: false, note: 'This event used an older ruleset. Its rule ID must not be resolved against the current rules.' }); continue; }
     const record = await db.get('rules', id); if (!record) continue;
     // Grouped hosts can have hundreds of origins; only relevant domains are exported.
-    const requests = journal.entries.filter(x => x.ruleId === id).map(x => hostFromURL(x.url));
+    const requests = journal.entries.filter(x => x.ruleId === id && x.generation === generation).map(x => hostFromURL(x.url));
     const origins = record.origins.filter(o => !o.host || requests.some(h => domainMatches(h, o.host))).slice(0, 20).map(o => o.source === 'custom' ? { source: 'custom', filter: '[regra pessoal omitida]' } : o);
-    matchedRules.push({ id, action: record.rule.action, origins });
+    matchedRules.push({ id, generation, available: true, action: record.rule.action, origins });
   }
   return { schema: 'mblock-diagnostic-v1', extension: { version: VERSION, target }, exportedAt: new Date().toISOString(), environment: { userAgent: navigator.userAgent }, capabilities: { nativeRuleLogging: diagnosticAttached && !!dnr.onRuleMatchedDebug, nativeLoggingNote: 'In Chromium, exact rule-match events require an unpacked extension. No event is not proof that blocking did not occur.', networkBlocking: 'declarativeNetRequest', remoteCode: false }, privacy: { cookies: false, bodies: false, headers: false, queryValues: false, pathDetails: journal.entries.some(e => e.urlDetails) }, configuration: { enabled: settings.enabled, genericCosmetic: settings.genericCosmetic, fixes: settings.fixes !== false, sites: settings.sites, sourceIds: settings.sourceIds, customRuleCount: settings.customRules.split('\n').filter(x => x.trim()).length }, metadata: publicMetadata, diagnostic: activeDiagnostic, journal: journal.toJSON(), matchedRules };
 }
@@ -243,7 +245,7 @@ async function handle(message, sender) {
     }
     case 'clear_logs': journal.clear(); await area.set({ journal: journal.toJSON() }); return {};
     case 'export': return exportReport();
-    case 'explain_rule': return await db.get('rules', Number(message.id));
+    case 'explain_rule': return message.generation && message.generation !== metadata.at ? null : await db.get('rules', Number(message.id));
     case 'simulate': {
       if (!hostFromURL(message.url) || !hostFromURL(message.initiator)) throw new Error('Use URLs HTTP/HTTPS válidas.');
       if (!dnr.testMatchOutcome) throw new Error('Simulação nativa indisponível neste navegador.');
