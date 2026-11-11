@@ -1,4 +1,4 @@
-import hashlib,json,zipfile
+import hashlib,json,zipfile,subprocess
 from pathlib import Path
 root=Path(__file__).resolve().parents[1]
 version=json.loads((root/'package.json').read_text())['version']
@@ -13,4 +13,14 @@ for target in ['chrome','edge','firefox']:
             if p.is_file(): z.write(p,p.relative_to(source))
     checks.append(hashlib.sha256(output.read_bytes()).hexdigest()+'  '+output.name)
     print(output.name,output.stat().st_size)
+source_output=artifacts/f'mblock-fontes-{version}.zip'
+tracked=subprocess.check_output(['git','ls-files'],cwd=root,text=True).splitlines()
+with zipfile.ZipFile(source_output,'w',zipfile.ZIP_DEFLATED,compresslevel=9) as z:
+    for name in sorted(tracked):
+        p=root/name
+        if p.is_file(): z.write(p,name)
+    for p in sorted((root/'data/cache').glob('*')):
+        if p.is_file() and p.suffix in ['.txt','.json']:z.write(p,p.relative_to(root))
+checks.append(hashlib.sha256(source_output.read_bytes()).hexdigest()+'  '+source_output.name)
+print(source_output.name,source_output.stat().st_size)
 checks_file=artifacts/'SHA256SUMS.txt';checks_file.write_text('\n'.join(checks)+'\n')

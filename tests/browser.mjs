@@ -25,6 +25,13 @@ try {
  };
  const state = await call('state'); assert.ok(state.metadata.stats.nativeRules>15000); passed.push('full bundled rules installed and bootstrap disabled');
  assert.deepEqual(await worker.evaluate(()=>chrome.declarativeNetRequest.getEnabledRulesets()),[]);
+ for(const [language,tag,label] of [['pt_BR','pt-BR','Doar via PayPal'],['zh_CN','zh-CN','通过 PayPal 捐赠'],['en','en-US','Donate with PayPal']]){
+   await dashboard.locator('[data-language]').selectOption(language);
+   await dashboard.waitForFunction(({tag,label})=>document.documentElement.lang===tag&&document.querySelector('[data-donate]')?.textContent===label,{tag,label});
+   const donation=new URL(await dashboard.locator('[data-donate]').getAttribute('href'));
+   assert.equal(donation.hostname,'www.paypal.com');assert.equal(donation.searchParams.get('business'),'jv12802@gmail.com');
+ }
+ passed.push('three interface languages and correct PayPal recipient');
  await call('settings',{patch:{autoUpdate:false,customRules:`||127.0.0.1:${server.address().port}/mblock-resource.js$script\n127.0.0.1##.mblock-sponsored`}});
  const site=await context.newPage();await site.goto(origin+'/fixture');
  await site.waitForFunction(()=>window.essentialLoaded===true);
@@ -56,6 +63,8 @@ try {
  await context.route('https://z9snqc.fcportables.com/**',route=>route.fulfill({contentType:'text/javascript',headers:{'Access-Control-Allow-Origin':'*'},body:'window.originalAntiCoreRan=true;'}));
  await fc.goto('https://www.fcportables.com/__mblock_fixture');await fc.waitForFunction(()=>window.__tlm===true&&window.__tlx===true);
  assert.equal(await fc.evaluate(()=>!!window.originalAntiCoreRan),false);assert.equal(await fc.evaluate(()=>!!window.fallbackRan),false);passed.push('observed FC Portables loader redirected; fallback loop not started (fixture)');
+ const fcTabId=await worker.evaluate(async url=>(await chrome.tabs.query({})).find(t=>t.url===url).id,fc.url());
+ const analysis=await call('assistant_analyze',{tabId:fcTabId});assert.equal(analysis.generativeAI,false);assert.equal(analysis.engines[0].confidence,'high');assert.equal(analysis.proposals.length,1);passed.push('local evidence classifier identifies known loader without claiming generative AI');
  await dashboard.reload();await dashboard.locator('#native').waitFor();await dashboard.screenshot({path:'test-results/dashboard.png',fullPage:true});
  await writeFile('test-results/browser.json',JSON.stringify({browser:context.browser()?.version(),passed,errors,note:'FC Portables verified with the observed loader URL in an isolated fixture. Live site not certified.'},null,2));
  console.log(JSON.stringify({passed:passed.length,checks:passed,errors},null,2));

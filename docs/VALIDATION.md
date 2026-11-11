@@ -4,6 +4,8 @@
 
 Esta alfa não demonstrou ser mais leve, mais completa ou menos detectável que o uBlock Origin. Os resultados de testes automatizados ficam nos artefatos do workflow e não substituem testes no Edge e Firefox reais.
 
+A integração Chromium passou em 11/11/2026, incluindo bloqueio, CSS, pausa, logger, falhas de atualização, rollback, exportação e fixture do carregador FC Portables. O teste identificou e corrigiu uma expressão regular que excedia a memória permitida pela API nativa; as duas expressões menores são verificadas antes de qualquer troca de regras.
+
 O ambiente local de desenvolvimento restringe sockets de IPC do Chromium, então a execução de navegador ocorre em GitHub Actions. Não se deve interpretar uma análise de código ou um teste de expressão regular como confirmação de uma correção no site ao vivo.
 
 ## Camadas de teste
