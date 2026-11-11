@@ -7,6 +7,7 @@ import { fetchList } from './shared/fetch-lists.js';
 import * as db from './shared/db.js';
 import { readBundle } from './shared/bundle.js';
 import { analyzeEvidence } from './shared/assistant.js';
+import { BUILD_TARGET } from './shared/platform.js';
 const api = globalThis.browser || chrome;
 const dnr = api.declarativeNetRequest;
 let settings, metadata, target, activeDiagnostic = null, journal, mutation = Promise.resolve(), updating = false;
@@ -22,7 +23,7 @@ function event(type, detail = {}, level = 'info') {
 function errMessage(error) { return String(error?.message || error).slice(0, 700); }
 function isUI(sender) { return sender.id === api.runtime.id && typeof sender.url === 'string' && sender.url.startsWith(api.runtime.getURL('ui/')); }
 function requireUI(sender) { if (!isUI(sender)) throw new Error('Operação permitida apenas no painel da extensão.'); }
-function targetName() { return api.runtime.getManifest().browser_specific_settings ? 'firefox' : 'chrome'; }
+function targetName() { return BUILD_TARGET; }
 function availableLimit() { return Math.min(30000, dnr.MAX_NUMBER_OF_DYNAMIC_RULES || 5000); }
 function allRules(compiled, config) { return [...compiled.rules, ...builtInRules(config), ...controlRules(config)].map((rule, i) => ({ ...rule, id: i + 1 })); }
 function snapshot(compiled, config, sources, texts) { return { at: new Date().toISOString(), target, compiled, rules: allRules(compiled, config), settings: config, sources, texts }; }
@@ -31,6 +32,7 @@ async function activate(next, previous, saveSettings = true) {
   if (next.rules.length > availableLimit()) throw new Error('Limite de regras dinâmicas excedido; configuração anterior mantida.');
   const unsafe = next.rules.filter(r => !['block', 'allow', 'allowAllRequests', 'upgradeScheme'].includes(r.action.type)).length;
   if (unsafe > (dnr.MAX_NUMBER_OF_UNSAFE_DYNAMIC_RULES || 5000)) throw new Error('Limite de regras de redirecionamento excedido.');
+  if (dnr.isRegexSupported) for (const r of next.rules.filter(r => r.condition.regexFilter)) { const result = await dnr.isRegexSupported({ regex: r.condition.regexFilter, isCaseSensitive: r.condition.isUrlFilterCaseSensitive === true }); if (!result.isSupported) throw new Error('Regex incompatível: ' + (result.reason || 'unknown')); }
   // Durable intent enables recovery if a worker or browser stops between API/DB writes.
   await db.put('meta', 'pending', next);
   let applied = false;

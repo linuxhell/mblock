@@ -16,6 +16,7 @@ await mkdir('dist', { recursive: true });
 const summaries = {};
 for (const target of ['chrome', 'edge', 'firefox']) {
   const dir = 'dist/' + target; await rm(dir, { recursive: true, force: true }); await cp('src', dir, { recursive: true }); await mkdir(dir + '/data', { recursive: true });
+  await writeFile(dir + '/shared/platform.js', '// SPDX-License-Identifier: GPL-3.0-only\nexport const BUILD_TARGET = ' + JSON.stringify(target) + ';\n');
   for (const [language, index, description] of [['pt_BR',0,'Bloqueio experimental de anúncios e rastreadores, com diagnóstico local e controle por site.'],['en',1,'Experimental ad and tracker blocking, with local diagnostics and per-site control.'],['zh_CN',2,'实验性广告和跟踪器拦截，提供本地诊断与按网站控制。']]) {
     const messages = { extensionName: { message: 'mBlock' }, extensionDescription: { message: description } };
     STRINGS.forEach((row, i) => { messages['ui_' + i] = { message: row[index].replaceAll('$','$$') }; });

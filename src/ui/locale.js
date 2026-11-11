@@ -18,7 +18,7 @@ export async function initLocale() {
   for (const select of document.querySelectorAll('[data-language]')) { select.value = locale; select.onchange = async () => { await api.storage.local.set({ uiLanguage: select.value }); location.reload(); }; }
   for (const link of document.querySelectorAll('[data-donate]')) {
     const url = new URL('https://www.paypal.com/cgi-bin/webscr');
-    url.search = new URLSearchParams({ cmd: '_donations', business: 'jv12802@gmail.com', item_name: 'mBlock development', currency_code: 'BRL', 'locale.x': locale === 'pt_BR' ? 'pt_BR' : locale === 'zh_CN' ? 'zh_CN' : 'en_US' }).toString();
+    url.search = new URLSearchParams({ cmd: '_donations', business: 'jv12802@gmail.com', item_name: t('Desenvolvimento do mBlock'), currency_code: 'BRL', 'locale.x': locale === 'pt_BR' ? 'pt_BR' : locale === 'zh_CN' ? 'zh_CN' : 'en_US' }).toString();
     link.href = url.href;
   }
 }
