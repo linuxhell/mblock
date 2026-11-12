@@ -67,3 +67,7 @@ A [medição posterior](MEMORY-2026-11-12.md) compara o mesmo conjunto de listas
 ## Segunda etapa de memória
 
 Comparação de regras sem serialização integral e proveniência com dicionários retiraram mais 54–55 MiB de RSS contra 525d676. A diferença para uBO ficou em 39,5–44,4 MiB, mantendo menor CPU/load na fixture. Nenhuma regra ou referência foi removida: a checagem diferencial percorre o conjunto completo antes de medir. Validado com 48 testes Node, 3 Python e 35 verificações de navegador. [Dados e limites](MEMORY-SECOND-2026-11-12.md).
+
+## Índice de diagnóstico compacto
+
+A [terceira medição](MEMORY-THIRD-2026-11-12.md) mantém as origens compactadas também no índice de regras e as reconstrói sob demanda, com leitura atômica da regra e de seu dicionário. Economia antes/depois de 7–11 MiB de RSS e 21,3–21,5% do heap do worker. CPU/load seguem menores que uBO na fixture. A RAM ficou próxima do uBO nesta execução; variações do próprio uBO impedem atribuir toda a diferença entre rodadas ao código. Validado por 49 testes Node, 3 Python, 36 verificações de navegador e comparação completa de filtros/origens.

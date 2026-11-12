@@ -1,5 +1,7 @@
 # Segunda redução de memória — 12/11/2026
 
+Continuação: [terceira etapa, com mais 7–11 MiB de economia](MEMORY-THIRD-2026-11-12.md). Os dados abaixo correspondem à segunda etapa.
+
 A nova etapa retirou **54,4–54,6 MiB** de RSS total em relação ao build que ainda apresentava aproximadamente 90 MiB extras. A diferença para o uBlock Origin ficou em **39,5–44,4 MiB** nesta execução, mantendo menor CPU e tempo de carregamento. A diferença não foi zerada.
 
 [CI da comparação](https://github.com/linuxhell/mblock/actions/runs/43247823270) · [CI de integração](https://github.com/linuxhell/mblock/actions/runs/43247822971) · [Amostras diretas](benchmarks/2026-11-12-memory-second-forward.json) · [Amostras inversas](benchmarks/2026-11-12-memory-second-reverse.json)
