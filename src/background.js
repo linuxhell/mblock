@@ -417,23 +417,24 @@ async function handle(message, sender) {
       if (!host) throw new Error('Não há correção conhecida para este site.');
       const evidence = await siteEvidence(tab.id);
       const analysis = analyzeEvidence(evidence, settings);
-      const proposal = analysis.proposals.find(x => x.id === 'antiadblock-core-v3');
+      const proposal = analysis.proposals.find(x => x.id === 'antiadblock-core-v4');
       if (!proposal) throw new Error('A assinatura conhecida não foi encontrada.');
       const loaderUrl = evidence.antiAdblockCore?.loaderUrl || '';
+      const loaderHost = evidence.antiAdblockCore?.loaderHost || '';
       const learned = [...(Array.isArray(settings.antiAdblockCoreRules) ? settings.antiAdblockCoreRules : [])]
-        .filter(x => x?.siteHost !== host || x?.loaderUrl !== loaderUrl);
-      if (loaderUrl) learned.push({ siteHost: host, loaderUrl });
+        .filter(x => x?.siteHost !== host);
+      if (loaderHost && loaderHost !== host) learned.push({ siteHost: host, loaderHost });
       const nextRules = learned.slice(-40);
       event('antiadblock_fix_started', { host, loaderHost: evidence.antiAdblockCore?.loaderHost || '', priorState: evidence.antiAdblockCore?.fixState || 'not-run' });
       await serial(() => changeSettings({ fixes: true, antiAdblockCoreRules: nextRules, sites: { ...settings.sites, [host]: { ...settings.sites[host], fixes: true } } }));
-      if (loaderUrl) event('antiadblock_fix_rule_installed', { host, loaderUrl: redactURL(loaderUrl, true), learnedRules: nextRules.length });
+      if (loaderHost && loaderHost !== host) event('antiadblock_fix_rule_installed', { host, loaderHost, observedLoaderUrl: loaderUrl ? redactURL(loaderUrl, true) : '', learnedRules: nextRules.length });
       await bounded(api.scripting.executeScript({ target: { tabId: tab.id, frameIds: [0] }, world: 'MAIN', files: ['resources/antiadblock-core-marker.js'] }));
       await reloadAndWait(tab.id);
       const verifiedEvidence = await siteEvidence(tab.id);
       const state = verifiedEvidence.antiAdblockCore?.fixState || 'not-run';
       const verified = state === 'redirected' || state === 'overlay-removed';
       event(verified ? 'antiadblock_fix_verified' : 'antiadblock_fix_unverified', { host, state, loaderHost: verifiedEvidence.antiAdblockCore?.loaderHost || '', overlayRemovals: verifiedEvidence.antiAdblockCore?.overlayRemovals || 0 }, verified ? 'info' : 'warn');
-      return { fix: 'antiadblock-core-v3', configured: true, learned: !!loaderUrl, reloaded: true, verified, state, trace: verifiedEvidence.antiAdblockCore || null };
+      return { fix: 'antiadblock-core-v4', configured: true, learned: !!loaderHost && loaderHost !== host, loaderHost, reloaded: true, verified, state, trace: verifiedEvidence.antiAdblockCore || null };
     }
     case 'clear_logs': journal.clear(); await area.set({ journal: journal.toJSON() }); return {};
     case 'export': return exportReport();
