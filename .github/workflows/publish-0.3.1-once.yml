@@ -1,0 +1,65 @@
+name: Publish mBlock 0.3.1 once
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  publish:
+    if: github.event.head_commit.message == 'Dispatch mBlock 0.3.1 published release'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 911df7ae73eecb44c29f805e9f29a193096a257e
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Check AMO credentials
+        env:
+          AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+          AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+        run: test -n "$AMO_JWT_ISSUER" && test -n "$AMO_JWT_SECRET"
+      - run: npm ci
+      - run: npm run fetch:lists
+      - run: npm run build
+      - run: node scripts/lint-firefox.mjs
+      - name: Download already signed Firefox 0.3.1 from AMO
+        env:
+          AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+          AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+        shell: bash
+        run: |
+          jwt=$(python3 - <<'PY'
+          import base64, hashlib, hmac, json, os, time, uuid
+          b64=lambda b: base64.urlsafe_b64encode(b).rstrip(b'=').decode()
+          header=b64(json.dumps({'alg':'HS256','typ':'JWT'},separators=(',',':')).encode())
+          now=int(time.time())
+          payload=b64(json.dumps({'iss':os.environ['AMO_JWT_ISSUER'],'jti':uuid.uuid4().hex,'iat':now,'exp':now+300},separators=(',',':')).encode())
+          body=f'{header}.{payload}'
+          sig=b64(hmac.new(os.environ['AMO_JWT_SECRET'].encode(),body.encode(),hashlib.sha256).digest())
+          print(f'{body}.{sig}')
+          PY
+          )
+          auth="Authorization: JWT $jwt"
+          curl --fail --silent --show-error -H "$auth"             "https://addons.mozilla.org/api/v4/addons/mblock@linuxhell.github.io/versions/0.3.1/"             -o amo-version.json
+          python3 - <<'PY'
+          import json
+          data=json.load(open('amo-version.json'))
+          files=[f for f in data.get('files',[]) if f.get('signed')]
+          if not files:
+              raise SystemExit('AMO 0.3.1 has no signed file')
+          open('amo-download-url.txt','w').write(files[0]['download_url'])
+          print('AMO signed file found:', files[0].get('hash',''))
+          PY
+          mkdir -p signed
+          curl --fail --location --silent --show-error -H "$auth"             "$(cat amo-download-url.txt)" -o signed/mblock-firefox-0.3.1.xpi
+      - name: Package release assets
+        run: python3 scripts/package.py --require-firefox --signed-firefox signed/mblock-firefox-0.3.1.xpi
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v0.3.1"             --target "911df7ae73eecb44c29f805e9f29a193096a257e"             --title "mBlock 0.3.1"             --notes-file docs/RELEASE_NOTES.md             artifacts/mblock-chrome-0.3.1.zip             artifacts/mblock-edge-0.3.1.zip             artifacts/mblock-firefox-0.3.1.xpi             artifacts/SHA256SUMS.txt
