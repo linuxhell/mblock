@@ -16,6 +16,21 @@ const server = createServer((req,res)=>{
 await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});
 const origin='http://site.mblock.test:'+server.address().port;
 function rss(processes){if(platform()!=='linux')return null;try{return Number(execFileSync('ps',['-p',processes.map(p=>p.id).join(','),'-o','rss='],{encoding:'utf8'}).trim().split(/\s+/).reduce((a,b)=>a+Number(b||0),0));}catch{return null;}}
+function processMemory(processes) {
+ if(platform()!=='linux')return [];
+ const lines=execFileSync('ps',['-p',[...new Set(processes.map(p=>p.id))].join(','),'-o','pid=,rss='],{encoding:'utf8'}).trim().split('\n');
+ const values=new Map(lines.map(line=>line.trim().split(/\s+/).map(Number)));
+ return processes.map(p=>({id:p.id,type:p.type,rssKiB:values.get(p.id)||0}));
+}
+async function targetHeap(root,targetId) {
+ const {sessionId}=await root.send('Target.attachToTarget',{targetId,flatten:false});
+ try{return await new Promise((resolve,reject)=>{
+  const timer=setTimeout(()=>{root.off('Target.receivedMessageFromTarget',receive);reject(Error('heap probe timeout'));},5000);
+  function receive(event){if(event.sessionId!==sessionId)return;const message=JSON.parse(event.message);if(message.id!==1)return;clearTimeout(timer);root.off('Target.receivedMessageFromTarget',receive);message.error?reject(Error(message.error.message)):resolve(message.result);}
+  root.on('Target.receivedMessageFromTarget',receive);
+  root.send('Target.sendMessageToTarget',{sessionId,message:JSON.stringify({id:1,method:'Runtime.getHeapUsage'})}).catch(reject);
+ });}finally{await root.send('Target.detachFromTarget',{sessionId});}
+}
 async function measure(label, extensionPath){
  const profile=await mkdtemp(tmpdir()+'/mblock-bench-');let context,configuration;
  try{
@@ -55,7 +70,9 @@ async function measure(label, extensionPath){
    samples.push({navigationAndIdleMs:Math.round(elapsed*100)/100,cpuMs:Math.round(cpuMs*100)/100,rssKiB:rss(after),adRequestsReachedServer:adHits,...stats});
   }
   const median=key=>{const values=samples.map(x=>x[key]).filter(x=>typeof x==='number').sort((a,b)=>a-b);return values.length?values[Math.floor(values.length/2)]:null;};
-  return {label,configuration,loadedTargets,extension:manifest?{name:manifest.name,version:manifest.version,manifestVersion:manifest.manifest_version}:null,browser:context.browser().version(),samples,median:Object.fromEntries(['navigationAndIdleMs','cpuMs','rssKiB','loadMs','adRequestsReachedServer'].map(k=>[k,median(k)]))};
+  const processes=processMemory((await root.send('SystemInfo.getProcessInfo')).processInfo);
+  const heaps=[];for(const t of targets.filter(t=>t.url.startsWith('chrome-extension://')))try{heaps.push({type:t.type,heap:await targetHeap(root,t.targetId)});}catch(error){heaps.push({type:t.type,error:String(error.message)});}
+  return {label,configuration,processes,heaps,loadedTargets,extension:manifest?{name:manifest.name,version:manifest.version,manifestVersion:manifest.manifest_version}:null,browser:context.browser().version(),samples,median:Object.fromEntries(['navigationAndIdleMs','cpuMs','rssKiB','loadMs','adRequestsReachedServer'].map(k=>[k,median(k)]))};
  }finally{if(context)await context.close();await rm(profile,{recursive:true,force:true});}
 }
 try{
@@ -71,5 +88,5 @@ try{
  const originCompared = baseline?.extension?.name === 'uBlock Origin' && baseline.extension.manifestVersion === 2;
  const report={at:new Date().toISOString(),order:scenarios.map(s=>s.label),machine:{platform:platform(),cpu:cpus()[0]?.model,logicalCPUs:cpus().length},fixture:{runs,adsPerPage:ads,cache:'no-store; one warm-up',note:'Synthetic local fixture; no live-site claim. Fresh default profiles; mBlock auto-updates disabled after initialization; uBO default bundled lists; subscriptions are not identical. Sequential scenarios can have order and background update bias.'},comparisonToUBlockOriginComplete:originCompared,scope:'Single synthetic fixture only; not a general superiority test',baselineProvided:!!process.env.MBLOCK_BASELINE,scenarios};
  await mkdir('test-results',{recursive:true});await writeFile(process.env.MBLOCK_BENCH_OUTPUT || 'test-results/benchmark.json',JSON.stringify(report,null,2));
- console.log(JSON.stringify(scenarios.map(x=>({label:x.label,extension:x.extension,median:x.median})),null,2));
+ console.log(JSON.stringify(scenarios.map(x=>({label:x.label,extension:x.extension,median:x.median,processes:x.processes,heaps:x.heaps})),null,2));
 }finally{await new Promise(r=>server.close(r));}
