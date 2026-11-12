@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Conservative compiler: unknown modifiers reject the WHOLE filter. Never widen it.
 import { validHost, stable, domainMatches } from './core.js';
+import { compactProvenance } from './provenance.js';
 import { LIMITS } from './sources.js';
 import { YOUTUBE_PROFILE } from './youtube-profile.js';
 const TYPES = { script: 'script', image: 'image', stylesheet: 'stylesheet', css: 'stylesheet', object: 'object', 'object-subrequest': 'object', subdocument: 'sub_frame', frame: 'sub_frame', xmlhttprequest: 'xmlhttprequest', xhr: 'xmlhttprequest', font: 'font', media: 'media', websocket: 'websocket', ping: 'ping', other: 'other', document: 'main_frame', doc: 'main_frame' };
@@ -145,7 +146,7 @@ export function compileLists(lists, { target = 'chrome', maxRules = 29000, packa
   if (items.length > maxRules) throw new Error(`São necessárias ${items.length} regras; limite disponível ${maxRules}. A configuração anterior foi mantida. Desative uma lista opcional.`);
   const uniqueCosmetic = [...new Map(cosmetics.map(c => [stable(c), c])).values()];
   if (uniqueCosmetic.length > LIMITS.selectors) throw new Error('Limite de seletores excedido; configuração anterior mantida.');
-  return { rules: items.map((x, i) => ({ id: i + 1, ...x.rule })), provenance: items.map(x => x.origins), cosmetics: uniqueCosmetic, hideExceptions, report, stats: { networkFilters: records.length - disabledCount - duplicates, nativeRules: items.length, cosmetics: uniqueCosmetic.length, duplicates, badfilters: disabledCount, unsupported: Object.values(report).reduce((a, s) => a + s.unsupported, 0) } };
+  return compactProvenance({ rules: items.map((x, i) => ({ id: i + 1, ...x.rule })), provenance: items.map(x => x.origins), cosmetics: uniqueCosmetic, hideExceptions, report, stats: { networkFilters: records.length - disabledCount - duplicates, nativeRules: items.length, cosmetics: uniqueCosmetic.length, duplicates, badfilters: disabledCount, unsupported: Object.values(report).reduce((a, s) => a + s.unsupported, 0) } });
 }
 export function cosmeticSelectors(compiled, host, generic) {
   const exception = compiled.hideExceptions.filter(x => domainMatches(host, x.domain));

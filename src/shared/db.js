@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import { encodeSnapshot, decodeSnapshot, boundedWrites, updatePreferencesOnly } from './snapshot-storage.js';
+import { originsForRule } from './provenance.js';
 let opening;
 export function openDB() {
   return opening ||= new Promise((resolve, reject) => {
@@ -93,7 +94,7 @@ export async function commitSnapshot(snapshot, previous, { cosmeticsChanged = tr
     const rules = tx.objectStore('rules'); if (rulesChanged) rules.clear();
     function* operations() {
       for (const [domain, items] of index) yield () => cos.put(items, domain);
-      if (rulesChanged) for (const rule of snapshot.rules) yield () => rules.put({ rule, origins:snapshot.compiled.provenance[rule.id - 1] || [{ source:'mblock', filter:'Controle local / correção específica' }] }, rule.id);
+      if (rulesChanged) for (const rule of snapshot.rules) yield () => rules.put({ rule, origins:originsForRule(snapshot.compiled, rule.id) || [{ source:'mblock', filter:'Controle local / correção específica' }] }, rule.id);
     }
     boundedWrites(tx, operations());
     tx.objectStore('meta').put({ at: snapshot.at, engineVersion: snapshot.engineVersion, settings: snapshot.settings, sources: snapshot.sources, stats: { ...snapshot.compiled.stats, nativeRules: snapshot.rules.length }, report: snapshot.compiled.report, target: snapshot.target, hasPrevious: !!previous }, 'active');
