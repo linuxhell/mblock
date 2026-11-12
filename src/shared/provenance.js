@@ -19,16 +19,17 @@ export function compactProvenance(compiled) {
   return {...compiled, provenance, provenanceEncoding:{version:1,sources,suffixes}};
 }
 export function originsForRule(compiled, id) {
-  const row = compiled.provenance[id - 1];
-  if (!row || !compiled.provenanceEncoding) return row;
-  const encoding = compiled.provenanceEncoding;
+  return expandOrigins(compiled.provenance[id - 1], compiled.rules[id - 1], compiled.provenanceEncoding);
+}
+export function expandOrigins(row, rule, encoding) {
+  if (!row || !encoding) return row;
   if (encoding.version !== 1) throw new Error('Formato de proveniência não suportado.');
   return row.map(item => {
     if (item[0] === 2) return item[1];
     const source = encoding.sources[item[1]];
     if (typeof source !== 'string') throw new Error('Origem de regra inválida.');
     if (item[0] === 1 && typeof item[2] === 'string') return {source,filter:item[2]};
-    const host = compiled.rules[id - 1]?.condition.requestDomains?.[item[2]], suffix = encoding.suffixes[item[3]];
+    const host = rule?.condition.requestDomains?.[item[2]], suffix = encoding.suffixes[item[3]];
     if (item[0] !== 0 || typeof host !== 'string' || typeof suffix !== 'string') throw new Error('Origem de regra inválida.');
     return {source,filter:'||' + host + suffix,host};
   });

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { compactProvenance, originsForRule } from '../src/shared/provenance.js';
+import { compactProvenance, originsForRule, expandOrigins } from '../src/shared/provenance.js';
 import { compileLists } from '../src/shared/compiler.js';
 test('provenance compaction reconstructs exact sources, filters and hosts, including legacy/fallback forms', () => {
  const original={rules:[{id:1,condition:{requestDomains:['a.example','b.example','c.example']}}],provenance:[[
@@ -25,4 +25,12 @@ test('grouped compilation preserves diagnostic evidence for every original filte
  assert.deepEqual(origins.map(o=>o.filter).sort(),[...lines].sort());
  assert.ok(origins.every(o=>o.source==='test' && o.host));
  assert.ok(JSON.stringify(compiled.provenance).length < JSON.stringify(origins).length/2);
+});
+
+test('compact rule index rows reconstruct the same public diagnostic record on demand', () => {
+ const compiled=compileLists([{id:'one',text:'||a.example^$script\n||b.example^$script\n||a.example/banner.js$image'}]);
+ const saved=structuredClone(compiled);
+ for(const rule of saved.rules) assert.deepEqual(expandOrigins(saved.provenance[rule.id-1],rule,saved.provenanceEncoding),originsForRule(compiled,rule.id));
+ const legacy=[{source:'custom',filter:'ads'}];assert.equal(expandOrigins(legacy,{id:1},null),legacy);
+ assert.throws(()=>expandOrigins([[0,9,0,0]],{condition:{requestDomains:['a.example']}},{version:1,sources:[],suffixes:[]}),/inválida/);
 });

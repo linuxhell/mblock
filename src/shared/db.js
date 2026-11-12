@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import { encodeSnapshot, decodeSnapshot, boundedWrites, updatePreferencesOnly } from './snapshot-storage.js';
-import { originsForRule } from './provenance.js';
+import { originsForRule, expandOrigins } from './provenance.js';
 let opening;
 export function openDB() {
   return opening ||= new Promise((resolve, reject) => {
@@ -11,9 +11,31 @@ export function openDB() {
 }
 async function rawGet(store, key) { const db = await openDB(); return new Promise((resolve, reject) => { const r = db.transaction(store).objectStore(store).get(key); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); }); }
 export async function get(store, key) {
+  if (store === 'rules') return getRule(key);
   const record = await rawGet(store, key);
   if (record?.storageFormat !== 'shared-v1') return record; // Existing installs need no destructive migration.
   return decodeSnapshot(record, await rawGet('snapshots', record.dataKey));
+}
+async function getRule(key) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    // Read the rule and its dictionary from one consistent generation, even
+    // when a filter update commits while the diagnostic is being requested.
+    const tx = db.transaction(['rules','meta']);
+    const rule = tx.objectStore('rules').get(key), encoding = tx.objectStore('meta').get('ruleProvenanceEncoding');
+    let remaining = 2;
+    function ready() {
+      if (--remaining) return;
+      const record = rule.result;
+      try {
+        if (!record?.originRow) { resolve(record); return; }
+        if (!encoding.result) throw new Error('Origem de regra inválida.');
+        resolve({rule:record.rule,origins:expandOrigins(record.originRow,record.rule,encoding.result)});
+      } catch (error) { reject(error); }
+    }
+    rule.onsuccess = encoding.onsuccess = ready;
+    tx.onerror = () => reject(tx.error); tx.onabort = () => reject(tx.error);
+  });
 }
 function ensureData(store, encoded) {
   const request = store.getKey(encoded.record.dataKey);
@@ -94,8 +116,15 @@ export async function commitSnapshot(snapshot, previous, { cosmeticsChanged = tr
     const rules = tx.objectStore('rules'); if (rulesChanged) rules.clear();
     function* operations() {
       for (const [domain, items] of index) yield () => cos.put(items, domain);
-      if (rulesChanged) for (const rule of snapshot.rules) yield () => rules.put({ rule, origins:originsForRule(snapshot.compiled, rule.id) || [{ source:'mblock', filter:'Controle local / correção específica' }] }, rule.id);
+      if (rulesChanged) for (const rule of snapshot.rules) yield () => {
+        const row = snapshot.compiled.provenance[rule.id - 1];
+        // Network rules retain compact tuples. Local controls and legacy
+        // snapshots still accept the existing plain diagnostic records.
+        const record = snapshot.compiled.provenanceEncoding && row ? {rule,originRow:row} : {rule,origins:originsForRule(snapshot.compiled,rule.id) || [{source:'mblock',filter:'Controle local / correção específica'}]};
+        return rules.put(record, rule.id);
+      };
     }
+    if (rulesChanged) tx.objectStore('meta').put(snapshot.compiled.provenanceEncoding || null, 'ruleProvenanceEncoding');
     boundedWrites(tx, operations());
     tx.objectStore('meta').put({ at: snapshot.at, engineVersion: snapshot.engineVersion, settings: snapshot.settings, sources: snapshot.sources, stats: { ...snapshot.compiled.stats, nativeRules: snapshot.rules.length }, report: snapshot.compiled.report, target: snapshot.target, hasPrevious: !!previous }, 'active');
     tx.objectStore('meta').put(snapshot.compiled.hideExceptions, 'hideExceptions');

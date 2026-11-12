@@ -26,6 +26,16 @@ try {
  };
  const state = await call('state'); assert.ok(state.metadata.stats.nativeRules>15000); passed.push('full bundled rules installed and bootstrap disabled');
  assert.deepEqual(await worker.evaluate(()=>chrome.declarativeNetRequest.getEnabledRulesets()),[]);
+ const compactIndex=await worker.evaluate(async()=>{
+  const db=await new Promise((resolve,reject)=>{const r=indexedDB.open('mblock-v1',1);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});
+  const read=(store,key)=>new Promise((resolve,reject)=>{const r=db.transaction(store).objectStore(store).get(key);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});
+  const record=await read('rules',1),encoding=await read('meta','ruleProvenanceEncoding');db.close();
+  return {compact:Array.isArray(record.originRow),expanded:record.origins!==undefined,version:encoding?.version};
+ });
+ assert.deepEqual(compactIndex,{compact:true,expanded:false,version:1});
+ const decodedRule=await call('explain_rule',{id:1});assert.ok(decodedRule.origins.length);assert.ok(decodedRule.origins.every(o=>typeof o.source==='string'&&typeof o.filter==='string'));
+ passed.push('compact diagnostic index expands original filter evidence on demand');
+
  // Re-open a legacy-shaped persisted snapshot to exercise the upgrade path.
  await call('settings',{patch:{autoUpdate:false,customRules:'||migration-preserved.example^\n'}});
  await call('site_policy',{host:'migration.example',policy:{paused:true}});

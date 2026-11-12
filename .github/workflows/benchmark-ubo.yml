@@ -22,7 +22,7 @@ jobs:
       - run: npm run build
       - name: Build previous version with exactly the same lists
         run: |
-          git worktree add --detach /tmp/mblock-before 525d676c969cbb5d30a740a1f2012982fce2d40c
+          git worktree add --detach /tmp/mblock-before 67a00f87782fd21ef41eee8bf03e173e1f2424ec
           ln -s "$GITHUB_WORKSPACE/node_modules" /tmp/mblock-before/node_modules
           mkdir -p /tmp/mblock-before/data
           cp -a data/cache /tmp/mblock-before/data/cache
