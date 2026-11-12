@@ -34,12 +34,25 @@ export function installElementPicker(token, labels) {
   function candidate(element) {
     if (!(element instanceof Element) || element.getRootNode() !== document || /^(HTML|BODY|HEAD)$/.test(element.tagName)) return '';
     const parts = []; let node = element;
+    const opaque = value => /^[a-z0-9]{8,16}$/i.test(value) && !/[-_:]/.test(value) && !/(?:adblock|modal|dialog|overlay|popup|cookie|banner|notice|message|content|wrapper|container)/i.test(value);
     for (let depth = 0; node && depth < 8 && node !== document.documentElement; depth++, node = node.parentElement) {
       const tag = node.localName;
       if (!/^[a-z][a-z0-9-]*$/.test(tag)) return '';
-      if (/^[a-zA-Z_][\w-]*$/.test(node.id) && document.querySelectorAll('#' + node.id).length === 1) { parts.unshift('#' + node.id); return parts.join(' > '); }
-      const classes = [...node.classList].filter(c => /^[a-zA-Z_][\w-]*$/.test(c)).slice(0, 3);
-      const simple = tag + classes.map(c => '.' + c).join('');
+      const nodeStyle = getComputedStyle(node), nodeZ = Number.parseInt(nodeStyle.zIndex, 10);
+      const modalLike = node.getAttribute('role') === 'dialog' || node.getAttribute('aria-modal') === 'true' ||
+        nodeStyle.position === 'fixed' || nodeStyle.position === 'sticky' || Number.isFinite(nodeZ) && nodeZ >= 1000;
+      for (const attr of ['role','aria-modal']) {
+        const value = node.getAttribute(attr);
+        if (!value || !/^[a-z0-9_-]+$/i.test(value)) continue;
+        const semantic = '[' + attr + '="' + value + '"]';
+        if (!parts.length && document.querySelectorAll(semantic).length === 1) return semantic;
+      }
+      const validId = /^[a-zA-Z_][\w-]*$/.test(node.id) && !(modalLike && opaque(node.id));
+      if (validId && document.querySelectorAll('#' + CSS.escape(node.id)).length === 1) { parts.unshift('#' + CSS.escape(node.id)); return parts.join(' > '); }
+      const classes = [...node.classList]
+        .filter(value => /^[a-zA-Z_][\w-]*$/.test(value) && !(modalLike && opaque(value)) && !/^css-[a-z0-9]+$/i.test(value))
+        .slice(0, 3);
+      const simple = tag + classes.map(value => '.' + CSS.escape(value)).join('');
       if (!parts.length && classes.length && document.querySelectorAll(simple).length === 1) return simple;
       const siblings = node.parentElement ? [...node.parentElement.children].filter(e => e.localName === tag) : [];
       parts.unshift(tag + (siblings.length > 1 ? ':nth-of-type(' + (siblings.indexOf(node) + 1) + ')' : ''));
