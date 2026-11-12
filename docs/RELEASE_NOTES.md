@@ -1,5 +1,6 @@
-mBlock 0.3.1
+mBlock 0.3.2
 
+- Corrige a versão exibida no popup e no painel: agora a interface lê `runtime.getManifest().version`, sem número hardcoded.
 - Nova versão de código para Chrome, Edge e Firefox; a 0.3.0 assinada permanece como versão anterior.
 - Redução de RSS em estado estacionário: diagnóstico pesado sai do caminho normal e passa a ser carregado sob demanda apenas no frame principal.
 - Scanner AntiAdblockCore global mais leve; a lógica pesada de recuperação só é alocada quando os marcadores conhecidos aparecem.
