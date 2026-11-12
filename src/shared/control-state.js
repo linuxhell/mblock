@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import { builtInRules } from './fixes.js';
 import { controlRules } from './core.js';
-const FIELDS=new Set(['enabled','autoUpdate','intervalHours','genericCosmetic','fixes','youtube','sites']);
+const FIELDS=new Set(['enabled','autoUpdate','intervalHours','genericCosmetic','fixes','youtube','sites','antiAdblockCoreRules']);
 export function controlsOnly(patch){const keys=Object.keys(patch);return keys.length>0&&keys.every(key=>FIELDS.has(key));}
 export function nextConfigurationTime(previous, now=Date.now()){
   return new Date(Math.max(now,(Date.parse(previous)||0)+1)).toISOString();
