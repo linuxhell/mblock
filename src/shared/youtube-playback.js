@@ -6,7 +6,7 @@ export function installYouTubePlayback(profileHash) {
   const key = '__mblockYouTubePlayback';
   if (globalThis[key]?.profileHash === profileHash && globalThis[key].active) return;
   globalThis[key]?.dispose?.();
-  const state = { profileHash, active: true, playerFound: false, installedAt: Date.now(), adEpisodes: 0, skipClicks: 0, seeks: 0, failedActions: 0, checks: 0 };
+  const state = { profileHash, active: true, playerFound: false, installedAt: Date.now(), adEpisodes: 0, skipClicks: 0, seeks: 0, failedActions: 0, checks: 0, lastReason: 'waiting_for_player', lastAction: null };
   globalThis[key] = state;
   const skipSelector = '.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-skip-ad-button';
   const cueSelectors = ['.ytp-ad-preview-container', '.ytp-ad-text', '.ytp-ad-simple-ad-badge', '.ytp-ad-player-overlay', '.ytp-ad-duration-remaining'];
@@ -21,38 +21,38 @@ export function installYouTubePlayback(profileHash) {
   function check() {
     clearTimeout(timer); timer = null; if (!state.active) return;
     state.checks++;
-    if (!adState()) { inAd = false; clicks = new WeakMap(); media = new WeakMap(); return; }
+    if (!adState()) { state.lastReason = 'ordinary_content'; inAd = false; clicks = new WeakMap(); media = new WeakMap(); return; }
     if (!inAd) { inAd = true; state.adEpisodes++; }
     // Retry only inside an ad. This also handles delayed/enabled skip buttons.
     timer = setTimeout(check, 300);
     const now = performance.now();
     const video = player.querySelector('video');
-    if (!video || video.paused || video.ended) { clearTimeout(timer); timer = null; return; }
+    if (!video || video.paused || video.ended) { state.lastReason = !video ? 'missing_video' : video.paused ? 'paused_video' : 'ended_video'; clearTimeout(timer); timer = null; return; }
     const button = Array.from(player.querySelectorAll(skipSelector)).find(el => visible(el) && !el.disabled && el.getAttribute('aria-disabled') !== 'true');
     if (button) {
       const attempts = clicks.get(button) || { count: 0, at: -Infinity };
       if (attempts.count < 3) {
-        if (now - attempts.at < 900) return;
+        if (now - attempts.at < 900) { state.lastReason = 'waiting_for_skip'; return; }
         attempts.count++; attempts.at = now; clicks.set(button, attempts);
         // Recheck immediately: a stale UI must never act on the next video.
-        if (adState() && visible(button)) { try { button.click(); state.skipClicks++; } catch { state.failedActions++; } }
+        if (adState() && visible(button)) { try { button.click(); state.skipClicks++; state.lastAction = 'clicked_skip'; } catch { state.failedActions++; state.lastReason = 'click_failed'; } }
         return;
       }
     }
     // An unskippable ad needs corroborating visible ad UI, not an ID/class alone.
-    if (!player.classList.contains('ad-showing')) return;
+    if (!player.classList.contains('ad-showing')) { state.lastReason = 'unconfirmed_ad'; return; }
     const cues = cueSelectors.filter(selector => visible(player.querySelector(selector))).length;
-    if (cues < (player.classList.contains('ad-interrupting') ? 1 : 2)) return;
-    if (video.readyState < 1 || !Number.isFinite(video.duration) || video.duration < 0.25 || video.duration > 900 || video.duration - video.currentTime < 0.15 || !video.seekable.length) return;
+    if (cues < (player.classList.contains('ad-interrupting') ? 1 : 2)) { state.lastReason = 'no_visible_ad_ui'; return; }
+    if (video.readyState < 1 || !Number.isFinite(video.duration) || video.duration < 0.25 || video.duration > 900 || video.duration - video.currentTime < 0.15 || !video.seekable.length) { state.lastReason = 'media_not_seekable'; return; }
     const end = video.seekable.end(video.seekable.length - 1);
-    if (end < video.duration - 0.2) return;
+    if (end < video.duration - 0.2) { state.lastReason = 'incomplete_media_range'; return; }
     const source = video.currentSrc, duration = video.duration;
     let attempts = media.get(video);
     if (!attempts || attempts.source !== source || attempts.duration !== duration) attempts = { source, duration, count: 0, at: -Infinity };
-    if (attempts.count >= 2 || now - attempts.at < 1500) return;
+    if (attempts.count >= 2 || now - attempts.at < 1500) { state.lastReason = 'seek_retry_limited'; return; }
     attempts.count++; attempts.at = now; media.set(video, attempts);
     if (!adState() || !player.classList.contains('ad-showing') || video.currentSrc !== source || video.duration !== duration) return;
-    try { video.currentTime = Math.max(0, Math.min(end, duration) - 0.05); state.seeks++; } catch { state.failedActions++; }
+    try { video.currentTime = Math.max(0, Math.min(end, duration) - 0.05); state.seeks++; state.lastAction = 'advanced_ad'; } catch { state.failedActions++; state.lastReason = 'seek_failed'; }
   }
   function bindPlayer() {
     if (!state.active) return;
@@ -89,6 +89,6 @@ export function installYouTubePlayback(profileHash) {
 export function probeYouTubePlayback() {
   const state = globalThis.__mblockYouTubePlayback;
   if (!state) return null;
-  const { profileHash, active, installedAt, playerFound, adEpisodes, skipClicks, seeks, failedActions, checks } = state;
-  return { profileHash, active, installedAt, playerFound, adEpisodes, skipClicks, seeks, failedActions, checks };
+  const { profileHash, active, installedAt, playerFound, adEpisodes, skipClicks, seeks, failedActions, checks, lastReason, lastAction } = state;
+  return { profileHash, active, installedAt, playerFound, adEpisodes, skipClicks, seeks, failedActions, checks, lastReason, lastAction };
 }

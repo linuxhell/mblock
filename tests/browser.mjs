@@ -119,7 +119,7 @@ try {
  const player=document.getElementById('movie_player'),video=player.querySelector('video');window.skipCount=0;window.completedAd=false;
  function content(){window.completedAd=true;player.className='';player.querySelector('button')?.remove();player.querySelector('span')?.remove();video.src='/__mblock_sample120.wav';video.play().catch(()=>{});}
  player.querySelector('button')?.addEventListener('click',()=>{window.skipCount++;content()});video.addEventListener('timeupdate',()=>{if(player.classList.contains('ad-showing')&&video.currentTime>14.8)content()});
- window.beginAd=async function(){video.src='/__mblock_sample15.wav';video.muted=true;await new Promise(resolve=>video.addEventListener('loadedmetadata',resolve,{once:true}));player.className='html5-video-player ad-showing ad-interrupting';${kind==='paused'?'':"await video.play()"}};
+ window.beginAd=async function(){video.src='/__mblock_sample15.wav';video.muted=true;await new Promise(resolve=>video.addEventListener('loadedmetadata',resolve,{once:true}));player.className='html5-video-player ad-showing ad-interrupting';${kind==='paused'?'':"await video.play().catch(()=>{})"}};
  </script>`;
  await context.route('https://www.youtube.com/__mblock_recovery*',r=>r.fulfill({contentType:'text/html',body:recoveryFixture(new URL(r.request().url()).searchParams.get('kind'))}));
  const recovery=await context.newPage();await recovery.goto('https://www.youtube.com/__mblock_recovery?kind=skip');await recovery.evaluate(()=>window.beginAd());await recovery.waitForFunction(()=>window.skipCount===1);assert.equal(await recovery.evaluate(()=>window.completedAd),true);passed.push('reported 15-second ad with visible skip button is dismissed automatically');
