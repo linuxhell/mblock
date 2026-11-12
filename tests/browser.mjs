@@ -37,9 +37,10 @@ try {
  context.on('serviceworker',w=>w.on('console',m=>{if(m.type()==='error')errors.push(m.text());}));
  dashboard=await context.newPage();await dashboard.goto('chrome-extension://'+id+'/ui/dashboard.html');worker=context.serviceWorkers()[0]||await context.waitForEvent('serviceworker',{timeout:60000});
  const migrated=await call('state');assert.equal(migrated.metadata.engineVersion,'0.3.0');assert.equal(migrated.settings.customRules,'||migration-preserved.example^\n');assert.equal(migrated.settings.sites['migration.example'].paused,true);assert.equal(migrated.settings.youtube,true);assert.ok((await call('logs')).entries.some(e=>e.type==='engine_upgraded'));passed.push('legacy 0.1 snapshot upgrades without losing personal filters or site policies');
- for(const [language,tag,label] of [['pt_BR','pt-BR','Doar via PayPal'],['zh_CN','zh-CN','通过 PayPal 捐赠'],['en','en-US','Donate with PayPal']]){
+ for(const [language,tag,label,placeholder] of [['pt_BR','pt-BR','Doar via PayPal','Nenhuma análise ainda.'],['zh_CN','zh-CN','通过 PayPal 捐赠','尚未进行分析。'],['en','en-US','Donate with PayPal','No analysis yet.']]){
    await dashboard.locator('[data-language]').selectOption(language);
    await dashboard.waitForFunction(({tag,label})=>document.documentElement.lang===tag&&document.querySelector('[data-donate]')?.textContent===label,{tag,label});
+   assert.equal(await dashboard.locator('#assistant-result').textContent(),placeholder);
    const donation=new URL(await dashboard.locator('[data-donate]').getAttribute('href'));
    assert.equal(donation.hostname,'www.paypal.com');assert.equal(donation.searchParams.get('business'),'jv12802@gmail.com');
  }

@@ -42,7 +42,7 @@ A missão é superar o uBlock Origin em resultados reproduzíveis. **Ainda não 
 
 A compilação das listas coletadas em 12/11/2026 ainda encontra cerca de 20 mil filtros incompatíveis, incluindo muitos scriptlets e filtros procedurais. Isso impede tratar o mBlock como substituto equivalente. Menos regras ou menor uso de CPU não demonstram melhor bloqueio se funções forem omitidas.
 
-Consulte [auditoria](docs/AUDIT-0.3.0.md) e [validação e benchmark](docs/VALIDATION.md). O benchmark recusa medir uma extensão inativa, registra CPU/RAM/tempo e confirma bloqueio e conteúdo essencial. A comparação controlada usa um Chromium histórico comum aos motores MV2/MV3; não representa a experiência em todos os navegadores atuais ou sites reais.
+Veja [resultados medidos contra o uBO](docs/BENCHMARK-2026-11-12.md): houve menor CPU/tempo nesta fixture, com maior memória. Consulte [auditoria](docs/AUDIT-0.3.0.md) e [validação e benchmark](docs/VALIDATION.md). O benchmark recusa medir uma extensão inativa, registra CPU/RAM/tempo e confirma bloqueio e conteúdo essencial. A comparação controlada usa um Chromium histórico comum aos motores MV2/MV3; não representa a experiência em todos os navegadores atuais ou sites reais.
 
 ## Privacidade e limites
 

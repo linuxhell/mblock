@@ -17,6 +17,7 @@ Base auditada: `2a61f02eee7df4bae025dd7a79a888bef20a0f13` (0.2.1). Revisão de c
 | Restauração de scriptlets condicionada à mudança DNR | Falha após modificar scripts poderia deixá-los com outra configuração | Restaurar registro de scripts mesmo quando DNR não muda |
 | Domínio simples tratado como substring de URL | Diferença de semântica frente ao uBO, com possíveis falsos positivos | Converter hostname simples em âncora de domínio |
 | `denyallow` e `_` recusados | Menor cobertura da sintaxe das listas | Compilar denyallow apenas com contexto positivo e preservar todas as restrições; aceitar placeholders |
+| Placeholders em blocos de relatório ignorados pela tradução | Interface misturava idiomas mesmo após escolher inglês/chinês | Traduzir também placeholders estáticos em PRE, mantendo CODE intacto |
 | Apenas três regras estáticas de emergência na primeira inicialização | Proteção parcial enquanto o worker e o banco iniciavam | Empacotar o conjunto padrão completo como bootstrap nativo, desativado após ativação dinâmica |
 | ZIP de fontes/Firefox sem assinatura no empacotamento | Assets fora da política de distribuição solicitada | Somente Chrome/Edge por padrão; XPI Mozilla da mesma versão para release completa |
 
@@ -44,6 +45,10 @@ Atualização automática já existia. Agora oferece intervalos, preserva idade 
 - O diagnóstico detalhado pode incluir informações pessoais nos caminhos. O usuário deve revisar exportações.
 - `npm audit --omit=dev`: zero vulnerabilidades na auditoria local. A árvore de ferramentas contém aviso baixo em `deepmerge` 4.3.1 via `addons-linter`/`web-ext`, sem versão corrigida publicada identificada. Não está no instalador. Não foi aplicado o downgrade incompatível sugerido pelo audit.
 - A checagem estrutural de XPI no empacotador não é validação criptográfica: usar somente XPI retornado pela Mozilla.
+
+## Evidência coletada
+
+41 testes unitários Node e 3 testes Python passaram localmente e no CI. A integração anterior à divisão do bootstrap completou 34 verificações no Chromium 158, sem erros de console. O [benchmark com uBO](BENCHMARK-2026-11-12.md) confirmou bloqueio de 60/60 scripts e conteúdo essencial em ambos; o mBlock usou menos CPU/tempo e mais RSS nessa fixture. A revisão final deve consultar os checks do commit mais recente.
 
 ## Como avaliar a missão de superar o uBO
 
