@@ -2,7 +2,7 @@
 import { DEFAULT_SETTINGS, hostFromURL, validHost, sitePolicy, controlRules, redactURL, RingBuffer, domainMatches, sameRules } from './shared/core.js';
 import { SOURCES, LIMITS, VERSION } from './shared/sources.js';
 import { compileLists, cosmeticSelectors, safeSelector } from './shared/compiler.js';
-import { ANTIADBLOCK_CORE_FIX_ROOTS, builtInRules } from './shared/fixes.js';
+import { builtInRules } from './shared/fixes.js';
 import { fetchList } from './shared/fetch-lists.js';
 import * as db from './shared/db.js';
 import { readBundle } from './shared/bundle.js';
@@ -388,13 +388,12 @@ async function handle(message, sender) {
         if (!current.youtubePlayback?.active || current.youtubePlayback.profileHash !== YOUTUBE_PROFILE.hash) for (const file of YOUTUBE_PROFILE.files) await bounded(api.scripting.executeScript({ target: { tabId: tab.id, frameIds: [0] }, world: file.world, files: [file.path] }));
         event('known_fix_enabled', { host, fix: 'youtube-v1', appliedToOpenTab: true }); return {};
       }
-      const fixRoot = ANTIADBLOCK_CORE_FIX_ROOTS.find(root => domainMatches(host, root));
-      if (!host || !fixRoot) throw new Error('Não há correção conhecida para este site.');
+      if (!host) throw new Error('Não há correção conhecida para este site.');
       const evidence = await siteEvidence(tab.id);
-      const analysis = analyzeEvidence(evidence, settings); const fixId = fixRoot + '-core-v1';
-      if (!analysis.proposals.some(x => x.id === fixId)) throw new Error('A assinatura conhecida não foi encontrada.');
-      await serial(() => changeSettings({ fixes: true, sites: { ...settings.sites, [fixRoot]: { ...settings.sites[fixRoot], fixes: true } } }));
-      event('known_fix_enabled', { host, fix: fixId }); return {};
+      const analysis = analyzeEvidence(evidence, settings);
+      if (!analysis.proposals.some(x => x.id === 'antiadblock-core-v1')) throw new Error('A assinatura conhecida não foi encontrada.');
+      await serial(() => changeSettings({ fixes: true }));
+      event('known_fix_enabled', { host, fix: 'antiadblock-core-v1', scope: 'global' }); return {};
     }
     case 'clear_logs': journal.clear(); await area.set({ journal: journal.toJSON() }); return {};
     case 'export': return exportReport();
