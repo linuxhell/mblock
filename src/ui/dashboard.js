@@ -1,6 +1,6 @@
-import { $, api, call, status, time, number, node, busy, saveReport, downloadFile, t, localeTag } from './common.js';
+import { $, api, call, status, time, number, node, busy, setDisabled, saveReport, downloadFile, t, localeTag } from './common.js';
 import { hostFromURL, sitePolicy } from '../shared/core.js';
-let state, tabs = [], logs = { entries: [] }, timer, importPreview;
+let state, tabs = [], logs = { entries: [] }, timer, diagTimer, importPreview;
 const bind = (selector, fn) => { const action = busy($(selector), fn); $(selector).onclick = async () => { await action(); if (selector === '#apply-import') updateImportButton(); }; };
 function selectedTab() { return tabs.find(t => t.id === Number($('#tab').value)); }
 function renderSite() {
@@ -10,10 +10,26 @@ function renderSite() {
   $('#site-paused').checked = p.paused; $('#site-cosmetic').checked = p.cosmetic; $('#site-generic').checked = p.generic;
   $('#site-fixes').checked = state.settings.sites?.['fcportables.com']?.fixes !== false && state.settings.fixes !== false;
   $('#site-fixes').disabled = !/(^|\.)fcportables\.com$/.test(host);
-  $('#save-site').disabled = !host;
-  for (const id of ['start', 'reload', 'analyze', 'site-paused', 'site-cosmetic', 'site-generic']) $('#' + id).disabled = !host;
-  $('#apply-known-fix').disabled = true;
+  setDisabled($('#save-site'), !host);
+  for (const id of ['start', 'reload', 'analyze', 'site-paused', 'site-cosmetic', 'site-generic']) setDisabled($('#' + id), !host);
+  renderKnownFix(null);
   if (selectedTab()) $('#test-origin').value = selectedTab().url;
+}
+function renderKnownFix(result) {
+  const available = result?.proposals.some(proposal => !proposal.enabled);
+  const message = !result ? 'Analise o site para verificar correções disponíveis.' : !result.proposals.length ? 'Nenhuma correção conhecida disponível para este site.' : available ? 'Correção disponível. Ative e recarregue o site.' : 'A correção conhecida já está ativa. Recarregue o site para aplicar.';
+  setDisabled($('#apply-known-fix'), !available); $('#known-fix-status').textContent = t(message);
+}
+function renderDiagnostic() {
+  clearInterval(diagTimer);
+  const paint = () => {
+    const diag = state.activeDiagnostic, seconds = diag ? Math.max(0, Math.ceil((diag.until - Date.now()) / 1000)) : 0;
+    $('#diag-state').textContent = seconds ? t('● Coletando em {host}: faltam {seconds} segundos. Você pode continuar navegando.', {host:diag.host,seconds}) : t('Nenhuma sessão ativa.');
+    setDisabled($('#stop'), !seconds);
+    if (!seconds) clearInterval(diagTimer);
+    return seconds;
+  };
+  if (paint()) diagTimer = setInterval(() => { if (!paint()) call('state').then(latest => { state.activeDiagnostic = latest.activeDiagnostic; return refreshLogs(); }).catch(e => status(e.message, true)); }, 1000);
 }
 async function refreshTabs() {
   const prior = $('#tab').value || new URLSearchParams(location.search).get('tab') || String(state.activeDiagnostic?.tabId || '');
@@ -33,10 +49,8 @@ async function refresh() {
   $('#enabled').checked = state.settings.enabled; $('#automatic').checked = state.settings.autoUpdate; $('#generic').checked = state.settings.genericCosmetic; $('#fixes').checked = state.settings.fixes !== false;
   $('#youtube').checked = state.settings.youtube !== false;
   $('#youtube-profile').textContent = t('Perfil do YouTube: {count} filtros avançados. Recarregue as abas do YouTube após alterar esta opção.', {count:number(state.youtubeProfile?.count)});
-  $('#custom').value = state.settings.customRules; $('#rollback').disabled = !state.metadata?.hasPrevious;
-  const diag = state.activeDiagnostic;
-  $('#diag-state').textContent = diag ? t('● Monitorando {host} até {time}. Reproduza o problema na aba.', { host: diag.host, time: new Date(diag.until).toLocaleTimeString(localeTag()) }) : t('Nenhuma sessão ativa.');
-  $('#stop').disabled = !diag;
+  $('#custom').value = state.settings.customRules; setDisabled($('#rollback'), !state.metadata?.hasPrevious);
+  renderDiagnostic();
   $('#sources').replaceChildren();
   for (const s of state.sources) {
     const r = node('tr'), name = node('td'), label = node('label', undefined, 'check'), checkbox = node('input'); checkbox.type = 'checkbox'; checkbox.checked = state.settings.sourceIds.includes(s.id); checkbox.dataset.source = s.id;
@@ -67,7 +81,7 @@ bind('#rollback', async () => { await call('rollback'); await refresh(); status(
 bind('#save-sources', async () => { status('Validando seleção e baixando listas novas…'); const ids = [...document.querySelectorAll('[data-source]:checked')].map(x => x.dataset.source); await call('settings', { patch: { sourceIds: ids } }); await refresh(); status('Listas salvas.'); });
 bind('#save-custom', async () => { status('Validando regras pessoais…'); await call('settings', { patch: { customRules: $('#custom').value } }); await refresh(); status('Regras processadas. Consulte os filtros não suportados acima.'); });
 for (const format of ['txt','json']) bind('#export-rules-' + format, async () => { const file = await call('rules_export', {format}); downloadFile(file.filename,file.content,file.mime); status('Regras exportadas. O arquivo contém apenas o que foi salvo.'); });
-function updateImportButton() { $('#apply-import').disabled = !importPreview || (importPreview.unsupported > 0 && !$('#import-unsupported').checked); }
+function updateImportButton() { setDisabled($('#apply-import'), !importPreview || (importPreview.unsupported > 0 && !$('#import-unsupported').checked)); }
 function invalidateImport() { importPreview = null; updateImportButton(); $('#import-preview').textContent = t('Nenhum arquivo validado.'); }
 for (const id of ['import-file','import-mode','import-settings']) $('#' + id).onchange = invalidateImport;
 $('#import-unsupported').onchange = updateImportButton;
@@ -82,16 +96,16 @@ bind('#preview-import', async () => {
 });
 bind('#apply-import', async () => { if (!importPreview) throw new Error('Valide o arquivo antes de importar.'); await call('rules_import_apply',{token:importPreview.token,allowUnsupported:$('#import-unsupported').checked}); invalidateImport(); await refresh(); status('Importação concluída. Recarregue os sites abertos.'); });
 bind('#save-site', async () => { const host = hostFromURL(selectedTab()?.url); await call('site_policy', { host, policy: { paused: $('#site-paused').checked, cosmetic: $('#site-cosmetic').checked, generic: $('#site-generic').checked } }); if (!$('#site-fixes').disabled) await call('site_policy', { host: 'fcportables.com', policy: { fixes: $('#site-fixes').checked } }); await refresh(); status('Perfil salvo. Recarregue a aba.'); });
-bind('#start', async () => { await call('diagnostic_start', { tabId: Number($('#tab').value), details: $('#details').checked }); await refresh(); await refreshLogs(); status('Diagnóstico iniciado. Recarregue o site e reproduza o problema.'); });
+bind('#start', async () => { await call('diagnostic_start', { tabId: Number($('#tab').value), details: $('#details').checked, durationSeconds: Number($('#diag-duration').value) }); await refresh(); await refreshLogs(); status('Diagnóstico iniciado. Recarregue o site e reproduza o problema.'); });
 bind('#stop', async () => { await call('diagnostic_stop'); await refresh(); status('Diagnóstico encerrado.'); });
 bind('#reload', async () => { if (!selectedTab()) throw new Error('Selecione uma aba.'); await api.tabs.reload(selectedTab().id); status('Aba recarregada.'); });
 bind('#refresh-tabs', refreshTabs); bind('#refresh-logs', refreshLogs);
 bind('#clear', async () => { await call('clear_logs'); await refreshLogs(); status('Eventos apagados.'); });
 bind('#export', async () => { await saveReport(); status('Arquivo JSON exportado. Você pode anexá-lo aqui para análise.'); });
 bind('#simulate', async () => { const r = await call('simulate', { url: $('#test-url').value, initiator: $('#test-origin').value, resourceType: $('#test-type').value }); $('#test-result').textContent = JSON.stringify(r, null, 2); status('Simulação concluída.'); });
-bind('#analyze', async () => { const tab = selectedTab(); if (!tab) throw new Error('Selecione uma aba.'); const result = await call('assistant_analyze', { tabId: tab.id }); $('#assistant-result').textContent = JSON.stringify(result, null, 2); $('#apply-known-fix').disabled = !result.proposals.length; status('Análise concluída.'); });
-bind('#apply-known-fix', async () => { if (!selectedTab()) throw new Error('Selecione uma aba.'); await call('assistant_enable_known_fix', { tabId: selectedTab().id }); await refresh(); status('Correção conhecida ativada. Recarregue a aba e repita o diagnóstico.'); });
+bind('#analyze', async () => { const tab = selectedTab(); if (!tab) throw new Error('Selecione uma aba.'); renderKnownFix(null); const result = await call('assistant_analyze', { tabId: tab.id }); if (selectedTab()?.id !== tab.id) return; $('#assistant-result').textContent = JSON.stringify(result, null, 2); renderKnownFix(result); status('Análise concluída.'); });
+bind('#apply-known-fix', async () => { if (!selectedTab()) throw new Error('Selecione uma aba.'); await call('assistant_enable_known_fix', { tabId: selectedTab().id }); await refresh(); renderKnownFix({proposals:[{enabled:true}]}); status('Correção conhecida ativada. Recarregue a aba e repita o diagnóstico.'); });
 $('#tab').onchange = renderSite; $('#search').oninput = renderLogs;
 $('#live').onchange = () => { clearInterval(timer); if ($('#live').checked) timer = setInterval(() => refreshLogs().catch(e => status(e.message, true)), 2000); };
-window.addEventListener('pagehide', () => clearInterval(timer));
+window.addEventListener('pagehide', () => { clearInterval(timer); clearInterval(diagTimer); });
 refresh().then(refreshTabs).then(refreshLogs).catch(e => status(e.message, true));

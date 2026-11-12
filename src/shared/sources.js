@@ -12,4 +12,4 @@ export const SOURCES = [
   { id: 'hagezi', name: 'HaGeZi Multi PRO · domínios (opcional)', enabled: false, license: 'GPL-3.0', url: 'https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/pro.txt' }
 ];
 export const VERSION = '0.2.0';
-export const LIMITS = { inputBytes: 16 * 1024 * 1024, lines: 450000, includes: 24, selectors: 60000, customBytes: 2 * 1024 * 1024, backupBytes: 6 * 1024 * 1024, logEntries: 2500, diagMinutes: 15 };
+export const LIMITS = { inputBytes: 16 * 1024 * 1024, lines: 450000, includes: 24, selectors: 60000, customBytes: 2 * 1024 * 1024, backupBytes: 6 * 1024 * 1024, logEntries: 2500, diagSeconds: 30, diagMaxSeconds: 300 };

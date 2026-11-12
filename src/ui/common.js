@@ -17,4 +17,11 @@ export async function saveReport() {
   downloadFile('mblock-diagnostic-' + new Date().toISOString().replace(/[:.]/g, '-') + '.json', JSON.stringify(report, null, 2), 'application/json');
 }
 export function downloadFile(filename, content, mime) { const url = URL.createObjectURL(new Blob([content], { type: mime })); const link = node('a'); link.href = url; link.download = filename; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 30000); }
-export function busy(element, action) { return async () => { element.disabled = true; try { await action(); } catch (e) { status(e.message, true); } finally { element.disabled = false; } }; }
+export function setDisabled(element, disabled) { element.dataset.disabledState = String(!!disabled); if (element.dataset.busy !== 'true') element.disabled = !!disabled; }
+export function busy(element, action) { return async () => {
+  if (element.dataset.busy === 'true') return;
+  const previous = element.disabled;
+  element.dataset.busy = 'true'; element.setAttribute('aria-busy', 'true'); element.disabled = true;
+  try { await action(); } catch (e) { status(e.message, true); }
+  finally { delete element.dataset.busy; element.removeAttribute('aria-busy'); element.disabled = element.dataset.disabledState === undefined ? previous : element.dataset.disabledState === 'true'; }
+}; }

@@ -17,8 +17,13 @@ const dnr = api.declarativeNetRequest;
 let settings, metadata, target, activeDiagnostic = null, journal, mutation = Promise.resolve(), updating = false;
 let initPromise, flushTimer, diagnosticAttached = false, diagCount = 0, rulesChanging = false;
 const cssByDocument = new Map();
+async function bounded(promise, milliseconds = 3000) {
+  let timer;
+  try { return await Promise.race([promise, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('O site demorou para responder. Recarregue a aba e tente novamente.')), milliseconds); })]); }
+  finally { clearTimeout(timer); }
+}
 async function youtubeRuntime(tabId) {
-  let youtubePlayer; try { const results = await api.scripting.executeScript({ target: { tabId, frameIds: [0] }, world: 'MAIN', func: probeYouTubePlayer }); youtubePlayer = results[0]?.result || { probeFailed: true }; } catch { youtubePlayer = { probeFailed: true }; }
+  let youtubePlayer; try { const results = await bounded(api.scripting.executeScript({ target: { tabId, frameIds: [0] }, world: 'MAIN', func: probeYouTubePlayer })); youtubePlayer = results[0]?.result || { probeFailed: true }; } catch { youtubePlayer = { probeFailed: true }; }
   const scripts = await api.scripting.getRegisteredContentScripts();
   const host = hostFromURL((await api.tabs.get(tabId)).url);
   return { youtubeProfile: YOUTUBE_PROFILE, youtubePlayer, youtubeRegistered: scripts.some(s => s.id.startsWith('mblock-youtube-') && scriptTargetsHost(s, host)) };
@@ -163,28 +168,31 @@ function detachDiagnostic() {
   diagnosticAttached = false;
 }
 async function expireDiagnostic() {
-  if (activeDiagnostic && activeDiagnostic.until <= Date.now()) { const tabId = activeDiagnostic.tabId; activeDiagnostic = null; detachDiagnostic(); await area.set({ activeDiagnostic: null }); await api.alarms.clear('diagnostic'); await api.tabs.sendMessage(tabId, { type: 'diagnostic_state', enabled: false }).catch(() => {}); event('diagnostic_stopped'); }
+  if (activeDiagnostic && activeDiagnostic.until <= Date.now()) { const tabId = activeDiagnostic.tabId; activeDiagnostic = null; detachDiagnostic(); await area.set({ activeDiagnostic: null }); await api.alarms.clear('diagnostic'); await bounded(api.tabs.sendMessage(tabId, { type: 'diagnostic_state', enabled: false }, { frameId: 0 })).catch(() => {}); event('diagnostic_stopped'); }
 }
-async function startDiagnostic(tabId, details) {
+async function startDiagnostic(tabId, details, durationSeconds = LIMITS.diagSeconds) {
   if (!Number.isInteger(tabId) || tabId < 0) throw new Error('Selecione uma aba de site.');
+  if (![30, 60, 120, LIMITS.diagMaxSeconds].includes(durationSeconds)) throw new Error('Duração de diagnóstico inválida.');
   const tab = await api.tabs.get(tabId); if (!hostFromURL(tab.url)) throw new Error('Abra um site HTTP/HTTPS.');
+  if (activeDiagnostic && activeDiagnostic.tabId !== tabId) { const priorTabId = activeDiagnostic.tabId; bounded(api.tabs.sendMessage(priorTabId, { type: 'diagnostic_state', enabled: false }, { frameId: 0 })).catch(() => {}); }
   detachDiagnostic(); diagCount = 0;
-  activeDiagnostic = { tabId, host: hostFromURL(tab.url), startedAt: Date.now(), until: Date.now() + LIMITS.diagMinutes * 60000, details: !!details };
+  activeDiagnostic = { tabId, host: hostFromURL(tab.url), startedAt: Date.now(), until: Date.now() + durationSeconds * 1000, durationSeconds, details: !!details };
   await area.set({ activeDiagnostic }); await api.alarms.create('diagnostic', { when: activeDiagnostic.until }); attachDiagnostic();
-  event('diagnostic_started', { tabId, host: activeDiagnostic.host, details: activeDiagnostic.details });
-  await api.tabs.sendMessage(tabId, { type: 'diagnostic_state', enabled: true }).catch(() => {});
-  if (isYouTube(hostFromURL(tab.url))) { const probe = await youtubeRuntime(tabId); event('youtube_profile', { tabId, profile: YOUTUBE_PROFILE.id, hash: YOUTUBE_PROFILE.hash, filters: YOUTUBE_PROFILE.count, enabled: !sitePolicy(settings, hostFromURL(tab.url)).paused && sitePolicy(settings, hostFromURL(tab.url)).youtube, scope: 'top_frame', player: probe.youtubePlayer }); }
+  event('diagnostic_started', { tabId, host: activeDiagnostic.host, durationSeconds, details: activeDiagnostic.details });
+  await bounded(api.tabs.sendMessage(tabId, { type: 'diagnostic_state', enabled: true, until: activeDiagnostic.until }, { frameId: 0 })).catch(() => {});
+  if (isYouTube(hostFromURL(tab.url))) youtubeRuntime(tabId).then(probe => { if (activeFor(tabId)) event('youtube_profile', { tabId, profile: YOUTUBE_PROFILE.id, hash: YOUTUBE_PROFILE.hash, filters: YOUTUBE_PROFILE.count, enabled: !sitePolicy(settings, hostFromURL(tab.url)).paused && sitePolicy(settings, hostFromURL(tab.url)).youtube, scope: 'top_frame', player: probe.youtubePlayer }); }).catch(() => {});
 }
 async function applyCosmetics(sender) {
   const host = hostFromURL(sender.url), topHost = hostFromURL((await api.tabs.get(sender.tab.id)).url);
   const topPolicy = sitePolicy(settings, topHost), policy = sitePolicy(settings, host);
-  const diagnostic = !!activeFor(sender.tab.id);
-  if (!host || topPolicy.paused || policy.paused || !topPolicy.cosmetic || !policy.cosmetic) return { selectors: 0, diagnostic };
+  const diagnostic = !!activeFor(sender.tab.id) && sender.frameId === 0;
+  const diagnosticUntil = diagnostic ? activeDiagnostic.until : null;
+  if (!host || topPolicy.paused || policy.paused || !topPolicy.cosmetic || !policy.cosmetic) return { selectors: 0, diagnostic, diagnosticUntil };
   const cos = await db.getCosmetics(host, topPolicy.generic && policy.generic);
   const current = await db.get('meta', 'hideExceptions') || [];
   const selectors = cosmeticSelectors({ cosmetics: cos, hideExceptions: current }, host, topPolicy.generic && policy.generic);
   const key = sender.tab.id + ':' + (sender.documentId || sender.frameId);
-  if (cssByDocument.has(key)) return { selectors: cssByDocument.get(key), diagnostic };
+  if (cssByDocument.has(key)) return { selectors: cssByDocument.get(key), diagnostic, diagnosticUntil };
   if (cssByDocument.size > 500) cssByDocument.clear();
   if (selectors.length) {
     // :is() is forgiving: one obsolete CSS selector cannot invalidate its neighbours.
@@ -193,7 +201,7 @@ async function applyCosmetics(sender) {
   }
   cssByDocument.set(key, selectors.length);
   if (diagnostic) event('cosmetics_applied', { tabId: sender.tab.id, host, selectors: selectors.length, generic: topPolicy.generic && policy.generic });
-  return { selectors: selectors.length, diagnostic };
+  return { selectors: selectors.length, diagnostic, diagnosticUntil };
 }
 async function exportReport() {
   await expireDiagnostic();
@@ -255,13 +263,13 @@ async function handle(message, sender) {
       if (plan.summary.unsupported && message.allowUnsupported !== true) throw new Error('A importação contém regras não suportadas. Revise a prévia.');
       await changeSettings(plan.patch); await db.put('meta', 'importPreview', null); event('rules_imported', { mode: plan.summary.mode, unsupported: plan.summary.unsupported }); return plan.summary;
     });
-    case 'diagnostic_start': await startDiagnostic(message.tabId, message.details); return {};
+    case 'diagnostic_start': await startDiagnostic(message.tabId, message.details, message.durationSeconds); return {};
     case 'diagnostic_stop': if (activeDiagnostic) activeDiagnostic.until = 0; await expireDiagnostic(); return {};
     case 'logs': return journal.toJSON();
     case 'assistant_analyze': {
       if (!Number.isInteger(message.tabId) || message.tabId < 0) throw new Error('Selecione uma aba de site.');
       const tab = await api.tabs.get(message.tabId); if (!hostFromURL(tab.url)) throw new Error('Abra um site HTTP/HTTPS.');
-      let evidence; try { evidence = await api.tabs.sendMessage(tab.id, { type: 'assistant_probe' }, { frameId: 0 }); } catch { throw new Error('Recarregue o site para iniciar a análise.'); }
+      let evidence; try { evidence = await bounded(api.tabs.sendMessage(tab.id, { type: 'assistant_probe' }, { frameId: 0 })); } catch { throw new Error('O site demorou para responder. Recarregue a aba e tente novamente.'); }
       if (!evidence || hostFromURL(evidence.url) !== hostFromURL(tab.url)) throw new Error('Origem inválida.');
       const result = analyzeEvidence(evidence, settings, isYouTube(hostFromURL(tab.url)) ? await youtubeRuntime(tab.id) : {});
       event('assistant_analysis', { host: result.host, engines: result.engines.map(x => x.name), proposals: result.proposals.map(x => x.id), generativeAI: false });
@@ -271,7 +279,7 @@ async function handle(message, sender) {
       const tab = await api.tabs.get(message.tabId); const host = hostFromURL(tab.url);
       if (isYouTube(host) && YOUTUBE_PROFILE.count > 0) { await serial(() => changeSettings({ youtube: true, sites: { ...settings.sites, [host]: { ...settings.sites[host], youtube: true } } })); event('known_fix_enabled', { host, fix: 'youtube-v1' }); return {}; }
       if (!host || !domainMatches(host, 'fcportables.com')) throw new Error('Não há correção conhecida para este site.');
-      const evidence = await api.tabs.sendMessage(tab.id, { type: 'assistant_probe' }, { frameId: 0 });
+      const evidence = await bounded(api.tabs.sendMessage(tab.id, { type: 'assistant_probe' }, { frameId: 0 }));
       const analysis = analyzeEvidence(evidence, settings); if (!analysis.proposals.some(x => x.id === 'fcportables-core-v1')) throw new Error('A assinatura conhecida não foi encontrada.');
       await serial(() => changeSettings({ fixes: true, sites: { ...settings.sites, 'fcportables.com': { ...settings.sites['fcportables.com'], fixes: true } } }));
       event('known_fix_enabled', { host, fix: 'fcportables-core-v1' }); return {};

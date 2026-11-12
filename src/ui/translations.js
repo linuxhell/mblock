@@ -16,7 +16,7 @@ export const STRINGS = [
 ['Diagnosticar site','Diagnose site','诊断网站'],
 ['Abrir painel','Open dashboard','打开控制面板'],
 ['Atualizar filtros','Update filters','更新过滤规则'],
-['Diagnóstico dura 15 minutos. URLs são reduzidas por padrão. Recarregue o site após alterar a proteção.','Diagnostics last 15 minutes. URLs are reduced by default. Reload the site after changing protection.','诊断持续 15 分钟。默认精简网址。更改保护设置后，请重新加载网站。'],
+['Diagnóstico dura 30 segundos. Você pode escolher mais tempo no painel. URLs são reduzidas por padrão. Recarregue o site após alterar a proteção.','Diagnostics last 30 seconds. You can choose more time in the dashboard. URLs are reduced by default. Reload the site after changing protection.','诊断持续 30 秒。您可以在控制面板中选择更长时间。默认精简网址。更改保护设置后，请重新加载网站。'],
 ['Bloqueio nativo. Diagnóstico local. Controle por site.','Native blocking. Local diagnostics. Per-site control.','原生拦截。本地诊断。按网站控制。'],
 ['Exportar diagnóstico JSON','Export diagnostic JSON','导出诊断 JSON'],
 ['Estado da proteção','Protection status','保护状态'],
@@ -130,7 +130,21 @@ export const STRINGS = [
 ["Formato de exportação inválido.","Invalid export format.","导出格式无效。"],
 ["A prévia expirou. Valide o arquivo novamente.","The preview expired. Validate the file again.","预览已过期。请重新验证文件。"],
 ["A configuração mudou. Gere uma nova prévia antes de importar.","The configuration changed. Generate a new preview before importing.","配置已更改。导入前请重新生成预览。"],
-["A importação contém regras não suportadas. Revise a prévia.","The import contains unsupported rules. Review the preview.","导入包含不支持的规则。请检查预览。"]
+["A importação contém regras não suportadas. Revise a prévia.","The import contains unsupported rules. Review the preview.","导入包含不支持的规则。请检查预览。"],
+["Duração da coleta", "Collection duration", "收集时长"],
+["30 segundos (padrão)", "30 seconds (default)", "30 秒（默认）"],
+["1 minuto", "1 minute", "1 分钟"],
+["2 minutos", "2 minutes", "2 分钟"],
+["5 minutos", "5 minutes", "5 分钟"],
+["Iniciar diagnóstico", "Start diagnostics", "开始诊断"],
+["A coleta ocorre em segundo plano. Você pode navegar normalmente e encerrar a qualquer momento.", "Collection runs in the background. You can browse normally and stop at any time.", "收集在后台进行。您可以正常浏览并随时结束。"],
+["● Coletando em {host}: faltam {seconds} segundos. Você pode continuar navegando.", "● Collecting on {host}: {seconds} seconds left. You can keep browsing.", "● 正在 {host} 收集：剩余 {seconds} 秒。您可以继续浏览。"],
+["Analise o site para verificar correções disponíveis.", "Analyze the site to check for available fixes.", "分析网站以检查可用的修复。"],
+["Nenhuma correção conhecida disponível para este site.", "No known fix is available for this site.", "此网站暂无已知修复。"],
+["Correção disponível. Ative e recarregue o site.", "A fix is available. Enable it and reload the site.", "修复可用。请启用并重新加载网站。"],
+["A correção conhecida já está ativa. Recarregue o site para aplicar.", "The known fix is already enabled. Reload the site to apply it.", "已知修复已启用。请重新加载网站以应用。"],
+["O site demorou para responder. Recarregue a aba e tente novamente.", "The site took too long to respond. Reload the tab and try again.", "网站响应超时。请重新加载标签页后重试。"],
+["Duração de diagnóstico inválida.", "Invalid diagnostic duration.", "诊断时长无效。"]
 ];
 export const LOCALES = { en: 'en-US', pt_BR: 'pt-BR', zh_CN: 'zh-CN' };
 const TEMPLATES = STRINGS.filter(row => /\{\w+\}/.test(row[0])).map(row => {

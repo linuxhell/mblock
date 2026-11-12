@@ -15,7 +15,7 @@ A versão **0.2.0** adiciona importação/exportação e um perfil avançado esp
 - Permite pausa global, perfis por site, regras pessoais e restauração da configuração anterior.
 - Exporta regras pessoais como TXT e backup JSON com perfis, preferências e IDs das listas. Importa com prévia, mesclagem/substituição, deduplicação e aviso de incompatibilidades. O arquivo de backup não contém logs nem dados de navegação.
 - Usa componentes GPL do uBlock Origin para gerar e empacotar o perfil de scriptlets do YouTube. Os hooks entram antes dos scripts da página e só são registrados nos domínios suportados do YouTube, em páginas de nível superior. A opção pode ser desligada e respeita a pausa por site.
-- Registra diagnósticos de uma aba por 15 minutos: requisições, erros de rede, correspondência nativa de regras quando disponível, origem dos filtros, seletores aplicados, limites e sinais de anti-adblock.
+- Registra diagnósticos de uma aba por 30 segundos por padrão (opções de 1, 2 ou 5 minutos): requisições, erros de rede, correspondência nativa de regras quando disponível, origem dos filtros, seletores aplicados, limites e sinais de anti-adblock.
 - Exporta JSON para análise, sem enviar os logs automaticamente. Cookies, cabeçalhos, corpos de requisição e valores de parâmetros não são coletados.
 - Inclui uma correção específica para o carregador anti-adblock observado no FC Portables em 11/11/2026. Sua assinatura de URL e o comportamento de fallback têm teste de regressão; isso não certifica todos os fluxos ou versões futuras do site.
 - Interface em inglês, português do Brasil e chinês simplificado, com detecção inicial do idioma e seletor manual. O ícone é um escudo preto com M vermelho.
