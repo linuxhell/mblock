@@ -2,7 +2,7 @@
 
 [Português](README.md) · [English](README.en.md) · [简体中文](README.zh-CN.md)
 
-An ad and tracker blocker for Chrome, Edge and Firefox using native Manifest V3 rules, per-site controls and local diagnostics. Version **0.3.0** removes the alpha label. This naming change does not certify parity with or superiority to uBlock Origin.
+An ad and tracker blocker for Chrome, Edge and Firefox using native Manifest V3 rules, per-site controls and local diagnostics. Version **0.3.1** removes the alpha label. This naming change does not certify parity with or superiority to uBlock Origin.
 
 ## Features
 
