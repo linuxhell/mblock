@@ -21,7 +21,7 @@ const api = globalThis.browser || chrome;
 const dnr = api.declarativeNetRequest;
 const bootstrapIds = api.runtime.getManifest().declarative_net_request.rule_resources.filter(r => r.id.startsWith('bootstrap')).map(r => r.id);
 let settings, metadata, target, activeDiagnostic = null, journal, mutation = Promise.resolve(), updating = false;
-let initPromise, flushTimer, diagnosticAttached = false, diagCount = 0, rulesChanging = false;
+let initPromise, initialized = false, flushTimer, diagnosticAttached = false, diagCount = 0, rulesChanging = false;
 const cssByDocument = new Map(), cosmeticCache = new CosmeticCache();
 async function bounded(promise, milliseconds = 3000) {
   let timer;
@@ -105,8 +105,9 @@ async function installSnapshot(next, previous, saveSettings = true) {
   cssByDocument.clear(); cosmeticCache.clear();
 }
 async function initialize() {
+  if (initialized) return;
   if (initPromise) return initPromise;
-  initPromise = (async () => {
+  const work = (async () => {
     target = targetName();
     const saved = await api.storage.local.get('settings'); settings = { ...DEFAULT_SETTINGS, ...saved.settings };
     if (!settings.sourceIds) settings.sourceIds = SOURCES.filter(s => s.enabled).map(s => s.id);
@@ -139,7 +140,10 @@ async function initialize() {
     await expireDiagnostic();
     if (activeDiagnostic) attachDiagnostic();
   })();
-  try { await initPromise; } catch (error) { initPromise = null; event('initialization_error', { error: errMessage(error) }, 'error'); throw error; }
+  initPromise = work;
+  try { await work; initialized = true; }
+  catch (error) { event('initialization_error', { error: errMessage(error) }, 'error'); throw error; }
+  finally { if (initPromise === work) initPromise = null; }
 }
 async function scheduleUpdate() {
   const plan = updateAlarm(settings, metadata?.sources);
