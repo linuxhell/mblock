@@ -17,6 +17,20 @@ export function installElementPicker(token, labels) {
   const buttons = {};
   for (const name of ['preview', 'save', 'again', 'cancel']) { const b = document.createElement('button'); b.textContent = labels[name]; buttons[name] = b; }
   panel.append(heading, description, field, ...Object.values(buttons)); shadow.append(style, outline, panel); document.documentElement.append(host);
+  function visualTarget(element) {
+    if (!(element instanceof Element) || element.getRootNode() !== document) return element;
+    let best = element, node = element;
+    for (let depth = 0; node && depth < 8 && node !== document.documentElement; depth++, node = node.parentElement) {
+      if (!(node instanceof Element) || /^(HTML|BODY|HEAD)$/.test(node.tagName)) break;
+      const style = getComputedStyle(node), rect = node.getBoundingClientRect();
+      const z = Number.parseInt(style.zIndex, 10);
+      const modalLike = node.getAttribute('role') === 'dialog' || node.getAttribute('aria-modal') === 'true' ||
+        style.position === 'fixed' || style.position === 'sticky' || Number.isFinite(z) && z >= 1000;
+      const visibleBox = rect.width >= 120 && rect.height >= 80;
+      if (modalLike && visibleBox) best = node;
+    }
+    return best;
+  }
   function candidate(element) {
     if (!(element instanceof Element) || element.getRootNode() !== document || /^(HTML|BODY|HEAD)$/.test(element.tagName)) return '';
     const parts = []; let node = element;
@@ -39,12 +53,12 @@ export function installElementPicker(token, labels) {
     const r = element.getBoundingClientRect(); outline.hidden = false;
     Object.assign(outline.style, { left:r.left+'px', top:r.top+'px', width:r.width+'px', height:r.height+'px' });
   }
-  function move(e) { if (!chosen && !e.composedPath().includes(host)) paint(e.target); }
+  function move(e) { if (!chosen && !e.composedPath().includes(host)) paint(visualTarget(e.target)); }
   function click(e) {
     if (e.composedPath().includes(host)) return;
     e.preventDefault(); e.stopImmediatePropagation(); if (!e.isTrusted || chosen) return;
-    const result = candidate(e.target); if (!result) return;
-    chosen = e.target; selector = result; field.value = location.hostname + '##' + selector; buttons.preview.disabled = buttons.save.disabled = false; paint(chosen);
+    const target = visualTarget(e.target); const result = candidate(target); if (!result) return;
+    chosen = target; selector = result; field.value = location.hostname + '##' + selector; buttons.preview.disabled = buttons.save.disabled = false; paint(chosen);
   }
   async function setPreview(enabled) {
     if (!selector) return false;
