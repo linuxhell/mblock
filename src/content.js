@@ -44,7 +44,8 @@
     if (sender.id !== api.runtime.id) return;
     if (message?.type === 'diagnostic_state') { if (message.enabled) enable(message.until); else disable(); respond({ ok: true }); }
   });
-  send('frame_ready').then(state => { if (state?.diagnostic) enable(state.diagnosticUntil); });
+  const documentKey = crypto.randomUUID();
+  send('frame_ready', { documentKey }).then(state => { if (state?.diagnostic) enable(state.diagnosticUntil); });
   document.addEventListener('DOMContentLoaded', scan, { once: true });
   window.addEventListener('load', scan, { once: true });
   window.addEventListener('pagehide', () => { stopped = true; disable(); }, { once: true });

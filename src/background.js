@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
-import { DEFAULT_SETTINGS, hostFromURL, validHost, sitePolicy, controlRules, redactURL, RingBuffer, domainMatches } from './shared/core.js';
+import { DEFAULT_SETTINGS, hostFromURL, validHost, sitePolicy, controlRules, redactURL, RingBuffer, domainMatches, stable } from './shared/core.js';
 import { SOURCES, LIMITS, VERSION } from './shared/sources.js';
-import { compileLists, cosmeticSelectors } from './shared/compiler.js';
+import { compileLists, cosmeticSelectors, safeSelector } from './shared/compiler.js';
 import { builtInRules } from './shared/fixes.js';
 import { fetchList } from './shared/fetch-lists.js';
 import * as db from './shared/db.js';
@@ -14,6 +14,8 @@ import { exportRules, planImport, normalizeRules } from './shared/rule-transfer.
 import { probeYouTubePlayer } from './shared/youtube-probe.js';
 import { probeYouTubePlayback } from './shared/youtube-playback.js';
 import { probeSite } from './shared/site-probe.js';
+import { updateAlarm, validUpdateInterval, unchangedLists } from './shared/update-policy.js';
+import { installElementPicker } from './shared/element-picker.js';
 const api = globalThis.browser || chrome;
 const dnr = api.declarativeNetRequest;
 let settings, metadata, target, activeDiagnostic = null, journal, mutation = Promise.resolve(), updating = false;
@@ -70,13 +72,15 @@ async function installSnapshot(next, previous, saveSettings = true) {
   await db.put('meta', 'pending', next);
   let applied = false;
   try {
-    await dnr.updateDynamicRules({ removeRuleIds: oldRules.map(r => r.id), addRules: next.rules });
-    applied = true;
+    if (stable(oldRules) !== stable(next.rules)) {
+      await dnr.updateDynamicRules({ removeRuleIds: oldRules.map(r => r.id), addRules: next.rules });
+      applied = true;
+    }
     await syncSiteScripts(api, next.settings);
-    await db.commitSnapshot(next, previous);
+    await db.commitSnapshot(next, previous, { cosmeticsChanged:next.compiled !== previous?.compiled, rulesChanged:applied || next.compiled !== previous?.compiled });
   } catch (error) {
     // The browser update is atomic. Restore the old rules if the DB commit failed.
-    try { if (applied) { await dnr.updateDynamicRules({ removeRuleIds: next.rules.map(r => r.id), addRules: oldRules }); await syncSiteScripts(api, oldSettings); } }
+    try { if (applied) { await dnr.updateDynamicRules({ removeRuleIds: next.rules.map(r => r.id), addRules: oldRules }); } await syncSiteScripts(api, oldSettings); }
     catch (rollbackError) { event('critical_recovery_needed', { error: errMessage(rollbackError) }, 'error'); throw new Error('Falha na restauração. Reinicie a extensão para recuperar a transação.'); }
     await db.put('meta', 'pending', null);
     throw error;
@@ -125,8 +129,10 @@ async function initialize() {
   try { await initPromise; } catch (error) { initPromise = null; event('initialization_error', { error: errMessage(error) }, 'error'); throw error; }
 }
 async function scheduleUpdate() {
-  if (settings.autoUpdate) { if (!await api.alarms.get('update')) await api.alarms.create('update', { delayInMinutes: 2, periodInMinutes: settings.intervalHours * 60 }); }
-  else await api.alarms.clear('update');
+  const plan = updateAlarm(settings, metadata?.sources);
+  if (!plan) { await api.alarms.clear('update'); return; }
+  const current = await api.alarms.get('update');
+  if (!current || current.periodInMinutes !== plan.periodInMinutes) await api.alarms.create('update', plan);
 }
 async function updateLists() {
   if (updating) throw new Error('Uma atualização já está em andamento.');
@@ -139,10 +145,11 @@ async function updateLists() {
       for (const r of results) { lists.push({ id: r.id, text: r.text }); sources.push(r.status); }
     }
     if (settings.customRules.trim()) lists.push({ id: 'custom', text: settings.customRules });
-    const compiled = compileLists(lists, { target, maxRules: availableLimit() - 200 });
     const old = await db.get('snapshots', 'active');
+    const unchanged = unchangedLists(old.sources, sources);
+    const compiled = unchanged ? old.compiled : compileLists(lists, { target, maxRules: availableLimit() - 200 });
     await activate(snapshot(compiled, settings, sources, lists.filter(x => x.id !== 'custom')), old);
-    event('update_succeeded', { rules: metadata.stats.nativeRules, unsupported: compiled.stats.unsupported });
+    event('update_succeeded', { rules: metadata.stats.nativeRules, unsupported: compiled.stats.unsupported, unchanged });
     return metadata;
   } catch (error) { event('update_failed_previous_retained', { error: errMessage(error) }, 'error'); throw error; }
   finally { updating = false; }
@@ -150,12 +157,14 @@ async function updateLists() {
 async function changeSettings(patch) {
   const old = await db.get('snapshots', 'active');
   const next = { ...settings, ...patch };
+  let sources = [...old.sources];
   const texts = old.texts.filter(x => next.sourceIds.includes(x.id));
   if (next.customRules.trim()) texts.push({ id: 'custom', text: next.customRules });
   const missing = next.sourceIds.filter(id => !texts.some(x => x.id === id));
-  for (const id of missing) { const r = await fetchList(SOURCES.find(x => x.id === id)); texts.push({ id, text: r.text }); old.sources = old.sources.filter(s => s.id !== id).concat(r.status); }
-  const compiled = compileLists(texts, { target, maxRules: availableLimit() - 200 });
-  await activate(snapshot(compiled, next, old.sources.filter(s => next.sourceIds.includes(s.id)), texts.filter(x => x.id !== 'custom')), old);
+  for (const id of missing) { const r = await fetchList(SOURCES.find(x => x.id === id)); texts.push({ id, text: r.text }); sources = sources.filter(s => s.id !== id).concat(r.status); }
+  const recompile = ['sourceIds', 'customRules'].some(key => key in patch);
+  const compiled = recompile ? compileLists(texts, { target, maxRules: availableLimit() - 200 }) : old.compiled;
+  await activate(snapshot(compiled, next, sources.filter(s => next.sourceIds.includes(s.id)), texts.filter(x => x.id !== 'custom')), old);
   await api.alarms.clear('update'); await scheduleUpdate();
   event('settings_changed', { keys: Object.keys(patch) });
 }
@@ -204,24 +213,25 @@ async function startDiagnostic(tabId, details, durationSeconds = LIMITS.diagSeco
   await attachDiagnosticPage(tabId, activeDiagnostic.until);
   if (isYouTube(hostFromURL(tab.url))) youtubeRuntime(tabId).then(probe => { if (activeFor(tabId)) event('youtube_profile', { tabId, profile: YOUTUBE_PROFILE.id, hash: YOUTUBE_PROFILE.hash, filters: YOUTUBE_PROFILE.count, enabled: !sitePolicy(settings, hostFromURL(tab.url)).paused && sitePolicy(settings, hostFromURL(tab.url)).youtube, applied: probe.youtubePlayback?.active && probe.youtubePlayback?.profileHash === YOUTUBE_PROFILE.hash, scope: 'top_frame', player: probe.youtubePlayer, playback: probe.youtubePlayback }); }).catch(() => {});
 }
-async function applyCosmetics(sender) {
+async function applyCosmetics(sender, documentKey) {
   const host = hostFromURL(sender.url), topHost = hostFromURL((await api.tabs.get(sender.tab.id)).url);
   const topPolicy = sitePolicy(settings, topHost), policy = sitePolicy(settings, host);
   const diagnostic = !!activeFor(sender.tab.id) && sender.frameId === 0;
   const diagnosticUntil = diagnostic ? activeDiagnostic.until : null;
   if (!host || topPolicy.paused || policy.paused || !topPolicy.cosmetic || !policy.cosmetic) return { selectors: 0, diagnostic, diagnosticUntil };
+  const identity = sender.documentId || (typeof documentKey === 'string' && /^[a-z0-9-]{1,80}$/i.test(documentKey) ? documentKey : '');
+  const key = sender.tab.id + ':' + sender.frameId + ':' + identity;
+  if (identity && cssByDocument.has(key)) return { selectors: cssByDocument.get(key), diagnostic, diagnosticUntil };
   const cos = await db.getCosmetics(host, topPolicy.generic && policy.generic);
   const current = await db.get('meta', 'hideExceptions') || [];
   const selectors = cosmeticSelectors({ cosmetics: cos, hideExceptions: current }, host, topPolicy.generic && policy.generic);
-  const key = sender.tab.id + ':' + (sender.documentId || sender.frameId);
-  if (cssByDocument.has(key)) return { selectors: cssByDocument.get(key), diagnostic, diagnosticUntil };
   if (cssByDocument.size > 500) cssByDocument.clear();
   if (selectors.length) {
     // :is() is forgiving: one obsolete CSS selector cannot invalidate its neighbours.
     const css = selectors.map(s => ':is(' + s + '){display:none!important;}').join('\n');
     await api.scripting.insertCSS({ target: { tabId: sender.tab.id, frameIds: [sender.frameId] }, css, origin: 'USER' });
   }
-  cssByDocument.set(key, selectors.length);
+  if (identity) cssByDocument.set(key, selectors.length);
   if (diagnostic) event('cosmetics_applied', { tabId: sender.tab.id, host, selectors: selectors.length, generic: topPolicy.generic && policy.generic });
   return { selectors: selectors.length, diagnostic, diagnosticUntil };
 }
@@ -245,25 +255,55 @@ async function exportReport() {
 async function handle(message, sender) {
   if (!message || typeof message.type !== 'string') throw new Error('Mensagem inválida.');
   await initialize(); await expireDiagnostic();
-  if (message.type === 'frame_ready') { if (!sender.tab || !hostFromURL(sender.url)) throw new Error('Origem inválida.'); return applyCosmetics(sender); }
+  if (message.type === 'frame_ready') { if (!sender.tab || !hostFromURL(sender.url)) throw new Error('Origem inválida.'); return applyCosmetics(sender, message.documentKey); }
   if (message.type === 'page_diagnostic') {
     if (!sender.tab || !activeFor(sender.tab.id)) return {};
     const p = message.payload || {};
     event('page_snapshot', { tabId: sender.tab.id, host: hostFromURL(sender.url), antiAdblockSignal: !!p.antiAdblockSignal, signal: typeof p.signal === 'string' ? p.signal.slice(0, 70) : '', markers: Array.isArray(p.markers) ? p.markers.filter(x => typeof x === 'string').slice(0, 6).map(x => x.slice(0, 80)) : [], timings: { domContentLoaded: Number(p.timings?.domContentLoaded) || 0, load: Number(p.timings?.load) || 0, contentTaskMs: Number(p.timings?.contentTaskMs) || 0 }, resourceErrors: Math.min(1000, Number(p.resourceErrors) || 0) }); return {};
   }
+  if (message.type === 'picker_save') return serial(async () => {
+    const pending = sender.tab && await db.get('meta', 'picker:' + sender.tab.id);
+    const host = hostFromURL(sender.url);
+    if (!pending || pending.token !== message.token || pending.until < Date.now() || sender.frameId !== 0 || host !== pending.host) throw new Error('Seleção expirada. Abra o bloqueador de elementos novamente.');
+    const selector = message.selector;
+    if (typeof selector !== 'string' || !safeSelector(selector) || /[\r\n]/.test(selector)) throw new Error('Seletor inválido.');
+    if (sitePolicy(settings, host).paused || !sitePolicy(settings, host).cosmetic) throw new Error('Ative a proteção e a ocultação por CSS neste site.');
+    // CSS syntax must also be accepted by the document before any durable write.
+    const validation = await api.scripting.executeScript({ target:{tabId:sender.tab.id,frameIds:[0]}, func:s => { try { return document.querySelectorAll(s).length > 0; } catch { return false; } }, args:[selector] });
+    if (!validation[0]?.result) throw new Error('Seletor inválido.');
+    const rule = host + '##' + selector;
+    if (!settings.customRules.split('\n').some(line => line.trim() === rule)) await changeSettings({ customRules:normalizeRules(settings.customRules.trimEnd() + '\n' + rule + '\n') });
+    await api.scripting.insertCSS({target:{tabId:sender.tab.id,frameIds:[0]},css:':is(' + selector + '){display:none!important}',origin:'USER'});
+    await db.put('meta', 'picker:' + sender.tab.id, null);
+    event('element_filter_created', { host }); return {};
+  });
   requireUI(sender);
   switch (message.type) {
     case 'state': return { settings, metadata, sources: SOURCES, activeDiagnostic, updating, limit: availableLimit(), version: VERSION, target, youtubeProfile: { id: YOUTUBE_PROFILE.id, count: YOUTUBE_PROFILE.count, hash: YOUTUBE_PROFILE.hash, upstream: YOUTUBE_PROFILE.upstream, allFrames: YOUTUBE_PROFILE.allFrames } };
+    case 'picker_start': {
+      const tab = await api.tabs.get(message.tabId), host = hostFromURL(tab.url);
+      if (!validHost(host)) throw new Error('Abra um site HTTP/HTTPS.');
+      const policy = sitePolicy(settings, host);
+      if (policy.paused || !policy.cosmetic) throw new Error('Ative a proteção e a ocultação por CSS neste site.');
+      const token = crypto.randomUUID();
+      await db.put('meta', 'picker:' + tab.id, { token, host, until:Date.now() + 300000 });
+      const keys = ['title','instruction','preview','save','again','cancel','failed'];
+      if (!message.labels || !keys.every(k => typeof message.labels[k] === 'string' && message.labels[k].length < 400)) throw new Error('Mensagem inválida.');
+      await bounded(api.scripting.executeScript({target:{tabId:tab.id,frameIds:[0]},world:'ISOLATED',func:installElementPicker,args:[token,Object.fromEntries(keys.map(k => [k,message.labels[k]]))]})); return {};
+    }
     case 'site_policy': {
       const host = String(message.host || '').toLowerCase(); if (!validHost(host)) throw new Error('Domínio inválido.');
-      const previous = settings.sites[host] || {}, policy = {};
+      const policy = {};
       for (const key of ['paused', 'cosmetic', 'generic', 'fixes', 'youtube']) if (typeof message.policy?.[key] === 'boolean') policy[key] = message.policy[key];
-      if (Object.keys(settings.sites).length >= 80 && !settings.sites[host]) throw new Error('Limite de 80 sites personalizados.');
-      await serial(() => changeSettings({ sites: { ...settings.sites, [host]: { ...previous, ...policy } } })); return {};
+      await serial(() => {
+        if (Object.keys(settings.sites).length >= 80 && !settings.sites[host]) throw new Error('Limite de 80 sites personalizados.');
+        return changeSettings({ sites: { ...settings.sites, [host]: { ...settings.sites[host], ...policy } } });
+      }); return {};
     }
     case 'settings': {
       const p = {};
       for (const key of ['enabled', 'autoUpdate', 'genericCosmetic', 'fixes', 'youtube']) if (typeof message.patch?.[key] === 'boolean') p[key] = message.patch[key];
+      if (message.patch && 'intervalHours' in message.patch) { if (!validUpdateInterval(message.patch.intervalHours)) throw new Error('Intervalo de atualização inválido.'); p.intervalHours = message.patch.intervalHours; }
       if (message.patch?.sourceIds) { if (!Array.isArray(message.patch.sourceIds) || !message.patch.sourceIds.every(x => SOURCES.some(s => s.id === x))) throw new Error('Fonte inválida.'); p.sourceIds = [...new Set(message.patch.sourceIds)]; }
       if (typeof message.patch?.customRules === 'string') p.customRules = normalizeRules(message.patch.customRules);
       await serial(() => changeSettings(p)); return {};

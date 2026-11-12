@@ -47,3 +47,18 @@ test('selector parser prevents data from turning into declarations or code', () 
 test('quota overflow throws instead of silently dropping filters', () => {
   assert.throws(()=>compile('/path-one\n/path-two',{maxRules:1}),/limite disponível/);
 });
+
+test('denyallow retains initiator, type and destination constraints and rejects unsafe forms', () => {
+ const r = parseLine('*$3p,script,denyallow=x.com|y.com,domain=a.com|b.com,to=~z.com');
+ assert.equal(r.kind,'network');
+ assert.deepEqual(r.condition.initiatorDomains,['a.com','b.com']);
+ assert.deepEqual(r.condition.excludedRequestDomains,['x.com','y.com','z.com']);
+ assert.deepEqual(r.condition.resourceTypes,['script']);
+ assert.equal(r.condition.domainType,'thirdParty');
+ for (const line of ['*$denyallow=x.com','*$denyallow=~x.com,domain=a.com','@@*$denyallow=x.com,domain=a.com','*$denyallow=x.com,domain=~a.com']) assert.equal(parseLine(line).kind,'unsupported');
+});
+test('bare hosts use domain anchors and underscore placeholders do not change filtering', () => {
+ assert.equal(parseLine('example.com').condition.urlFilter,'||example.com^');
+ assert.equal(parseLine('example.com*').condition.urlFilter,'example.com*');
+ assert.deepEqual(parseLine('||example.com^$script,___').condition,parseLine('||example.com^$script').condition);
+});

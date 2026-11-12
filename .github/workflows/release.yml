@@ -1,0 +1,49 @@
+name: Signed installation release
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: signed-release
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Check signing configuration
+        env:
+          AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+          AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+        run: |
+          test -n "$AMO_JWT_ISSUER" && test -n "$AMO_JWT_SECRET" || { echo 'Configure AMO_JWT_ISSUER and AMO_JWT_SECRET. No release was published.'; exit 1; }
+      - run: npm ci
+      - run: npm test
+      - run: python3 -m unittest discover -s tests -p '*_test.py'
+      - run: npm run fetch:lists
+      - run: npm run build
+      - run: node scripts/lint-firefox.mjs
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
+      - name: Obtain Mozilla signature
+        env:
+          AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+          AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+        run: npx web-ext sign --source-dir dist/firefox --artifacts-dir signed --channel unlisted --api-key "$AMO_JWT_ISSUER" --api-secret "$AMO_JWT_SECRET"
+      - name: Package only installation assets
+        shell: bash
+        run: |
+          mapfile -t xpis < <(find signed -maxdepth 1 -name '*.xpi' -type f)
+          test "${#xpis[@]}" -eq 1
+          python3 scripts/package.py --require-firefox --signed-firefox "${xpis[0]}"
+      - name: Publish signed installation release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(node -p "JSON.parse(require('fs').readFileSync('package.json')).version")
+          gh release create "v$version" --target "$GITHUB_SHA" --title "mBlock $version" --notes-file docs/RELEASE_NOTES.md artifacts/mblock-chrome-"$version".zip artifacts/mblock-edge-"$version".zip artifacts/mblock-firefox-"$version".xpi artifacts/SHA256SUMS.txt

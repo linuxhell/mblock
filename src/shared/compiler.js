@@ -37,9 +37,15 @@ export function parseLine(line, source = 'custom') {
   if (s.startsWith('/')) { const end = s.lastIndexOf('/'); if (end > 0 && (end === s.length - 1 || s[end + 1] === '$')) return { kind: 'unsupported', reason: 'regex (versão inicial)' }; }
   const split = s.lastIndexOf('$'); const pattern = split >= 0 ? s.slice(0, split) : s;
   const options = split >= 0 ? s.slice(split + 1).split(',') : [];
-  const condition = {}, yesTypes = [], noTypes = []; let important = false, hide = null, all = false;
+  const condition = {}, yesTypes = [], noTypes = []; let important = false, hide = null, all = false, denyAllow = null;
   for (const option of options) {
     const neg = option.startsWith('~'); const op = neg ? option.slice(1) : option;
+    if (/^_+$/.test(option)) continue;
+    if (option.startsWith('denyallow=')) {
+      const d = domains(option.slice(10));
+      if (denyAllow || !d || !d.yes.length || d.no.length) return { kind:'unsupported', reason:'denyallow inválido' };
+      denyAllow = d.yes; continue;
+    }
     if (TYPES[op]) { (neg ? noTypes : yesTypes).push(TYPES[op]); continue; }
     if (option === 'all' && !exception) { all = true; continue; }
     if (op === 'third-party' || op === '3p' || op === 'first-party' || op === '1p') {
@@ -61,6 +67,10 @@ export function parseLine(line, source = 'custom') {
     // redirect/replace/removeparam/csp/denyallow/popup/etc need separate semantics.
     return { kind: 'unsupported', reason: 'modificador: ' + option.slice(0, 70) };
   }
+  if (denyAllow) {
+    if (!condition.initiatorDomains?.length || exception || hide) return { kind:'unsupported', reason:'denyallow exige domínio positivo e bloqueio de rede' };
+    condition.excludedRequestDomains = [...new Set([...(condition.excludedRequestDomains || []), ...denyAllow])].sort();
+  }
   if (hide) {
     const m = /^\|\|([a-z0-9.-]+)\^$/.exec(pattern);
     return m && validHost(m[1]) ? { kind: 'hideException', domain: m[1], mode: hide, source } : { kind: 'unsupported', reason: 'exceção cosmética complexa' };
@@ -72,7 +82,8 @@ export function parseLine(line, source = 'custom') {
   else condition.resourceTypes = ALL_TYPES.filter(x => (all || x !== 'main_frame') && !noTypes.includes(x));
   // Main-frame blocking requires an explicit $document; avoids accidental navigation blocking.
   if (!condition.resourceTypes.length) return { kind: 'unsupported', reason: 'nenhum tipo' };
-  condition.urlFilter = pattern;
+  // uBO treats bare hostnames as host anchors, not arbitrary URL substrings.
+  condition.urlFilter = validHost(pattern) ? '||' + pattern + '^' : pattern;
   return { kind: 'network', priority: important ? 30 : exception ? 20 : 10, action: { type: exception ? 'allow' : 'block' }, condition, source, raw: line.trim() };
 }
 function evalCondition(expression, target) {

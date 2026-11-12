@@ -27,9 +27,17 @@ async function measure(label, extensionPath){
   if(label==='mblock'){
    const worker=context.serviceWorkers()[0]||await context.waitForEvent('serviceworker');
    const ui=await context.newPage();await ui.goto('chrome-extension://'+new URL(worker.url()).host+'/ui/dashboard.html');
-   await ui.evaluate(async()=>{const r=await chrome.runtime.sendMessage({type:'state'});if(!r.ok)throw Error(r.error)});await ui.close();
+   await ui.evaluate(async()=>{const r=await chrome.runtime.sendMessage({type:'state'});if(!r.ok)throw Error(r.error);await chrome.runtime.sendMessage({type:'settings',patch:{autoUpdate:false}})});await ui.close();
   }
-  await page.goto(origin,{waitUntil:'networkidle'}); // warm-up; not included in samples
+  // Never benchmark an extension which failed to load (notably MV2 in new Chrome).
+  if (extension && manifest.manifest_version === 2 && !context.backgroundPages().length) await context.waitForEvent('backgroundpage', {timeout:15000});
+  let ready = false;
+  for (let attempt = 0; attempt < 20; attempt++) {
+   adHits = 0; await page.goto(origin + '/?warmup=' + attempt, {waitUntil:'networkidle'});
+   const essential = await page.evaluate(()=>window.essentialLoaded===true);
+   if (essential && adHits === (extension ? 0 : ads)) { ready = true; break; }
+  }
+  if (!ready) throw new Error(label + ': blocking readiness check failed; refuse misleading timings.');
   const samples=[];
   for(let i=0;i<runs;i++){
    adHits=0;
@@ -39,6 +47,7 @@ async function measure(label, extensionPath){
    const oldCPU=new Map(before.map(x=>[x.id,x.cpuTime]));
    const cpuMs=after.reduce((a,p)=>a+Math.max(0,p.cpuTime-(oldCPU.get(p.id)||0))*1000,0);
    const stats=await page.evaluate(()=>({essential:window.essentialLoaded===true,adScriptsExecuted:window.adLoads||0,baitHidden:getComputedStyle(document.querySelector('.adsbox')).display==='none',domContentLoadedMs:performance.getEntriesByType('navigation')[0].domContentLoadedEventEnd,loadMs:performance.getEntriesByType('navigation')[0].loadEventEnd}));
+   if (!stats.essential || adHits !== (extension ? 0 : ads)) throw new Error(label + ': blocking regression during sample');
    samples.push({navigationAndIdleMs:Math.round(elapsed*100)/100,cpuMs:Math.round(cpuMs*100)/100,rssKiB:rss(after),adRequestsReachedServer:adHits,...stats});
   }
   const median=key=>{const values=samples.map(x=>x[key]).filter(x=>typeof x==='number').sort((a,b)=>a-b);return values.length?values[Math.floor(values.length/2)]:null;};
@@ -48,7 +57,9 @@ async function measure(label, extensionPath){
 try{
  const scenarios=[await measure('no-extension'),await measure('mblock','dist/chrome')];
  if(process.env.MBLOCK_BASELINE)scenarios.push(await measure('external-baseline',process.env.MBLOCK_BASELINE));
- const report={at:new Date().toISOString(),machine:{platform:platform(),cpu:cpus()[0]?.model,logicalCPUs:cpus().length},fixture:{runs,adsPerPage:ads,cache:'no-store; one warm-up',note:'Synthetic local fixture; no live-site claim. External baseline configuration must be verified separately.'},comparisonToUBlockOriginComplete:false,baselineProvided:!!process.env.MBLOCK_BASELINE,scenarios};
- await mkdir('test-results',{recursive:true});await writeFile('test-results/benchmark.json',JSON.stringify(report,null,2));
+ const baseline = scenarios.find(s => s.label === 'external-baseline');
+ const originCompared = baseline?.extension?.name === 'uBlock Origin' && baseline.extension.manifestVersion === 2;
+ const report={at:new Date().toISOString(),machine:{platform:platform(),cpu:cpus()[0]?.model,logicalCPUs:cpus().length},fixture:{runs,adsPerPage:ads,cache:'no-store; one warm-up',note:'Synthetic local fixture; no live-site claim. Fresh default profiles; mBlock auto-updates disabled after initialization; uBO default bundled lists; subscriptions are not identical. Sequential scenarios can have order and background update bias.'},comparisonToUBlockOriginComplete:originCompared,scope:'Single synthetic fixture only; not a general superiority test',baselineProvided:!!process.env.MBLOCK_BASELINE,scenarios};
+ await mkdir('test-results',{recursive:true});await writeFile(process.env.MBLOCK_BENCH_OUTPUT || 'test-results/benchmark.json',JSON.stringify(report,null,2));
  console.log(JSON.stringify(scenarios.map(x=>({label:x.label,extension:x.extension,median:x.median})),null,2));
 }finally{await new Promise(r=>server.close(r));}

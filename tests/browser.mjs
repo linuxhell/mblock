@@ -36,7 +36,7 @@ try {
  await context.close();context=await chromium.launchPersistentContext(profile,launchOptions);
  context.on('serviceworker',w=>w.on('console',m=>{if(m.type()==='error')errors.push(m.text());}));
  dashboard=await context.newPage();await dashboard.goto('chrome-extension://'+id+'/ui/dashboard.html');worker=context.serviceWorkers()[0]||await context.waitForEvent('serviceworker',{timeout:60000});
- const migrated=await call('state');assert.equal(migrated.metadata.engineVersion,'0.2.1');assert.equal(migrated.settings.customRules,'||migration-preserved.example^\n');assert.equal(migrated.settings.sites['migration.example'].paused,true);assert.equal(migrated.settings.youtube,true);assert.ok((await call('logs')).entries.some(e=>e.type==='engine_upgraded'));passed.push('legacy 0.1 snapshot upgrades without losing personal filters or site policies');
+ const migrated=await call('state');assert.equal(migrated.metadata.engineVersion,'0.3.0');assert.equal(migrated.settings.customRules,'||migration-preserved.example^\n');assert.equal(migrated.settings.sites['migration.example'].paused,true);assert.equal(migrated.settings.youtube,true);assert.ok((await call('logs')).entries.some(e=>e.type==='engine_upgraded'));passed.push('legacy 0.1 snapshot upgrades without losing personal filters or site policies');
  for(const [language,tag,label] of [['pt_BR','pt-BR','Doar via PayPal'],['zh_CN','zh-CN','通过 PayPal 捐赠'],['en','en-US','Donate with PayPal']]){
    await dashboard.locator('[data-language]').selectOption(language);
    await dashboard.waitForFunction(({tag,label})=>document.documentElement.lang===tag&&document.querySelector('[data-donate]')?.textContent===label,{tag,label});
@@ -50,6 +50,37 @@ try {
  await site.waitForFunction(()=>getComputedStyle(document.querySelector('.mblock-sponsored')).display==='none');
  assert.equal(await site.evaluate(()=>!!window.adResourceLoaded),false); passed.push('native blocking + scoped cosmetics, essential script preserved');
  const tabId=await worker.evaluate(async url=>(await chrome.tabs.query({})).find(t=>t.url===url).id,site.url());
+
+ // Alarm changes and two concurrent site edits must both survive serialization.
+ await call('settings',{patch:{autoUpdate:true,intervalHours:6}});
+ assert.equal((await worker.evaluate(()=>chrome.alarms.get('update'))).periodInMinutes,360);
+ await assert.rejects(()=>call('settings',{patch:{intervalHours:0}}),/Intervalo/);
+ await Promise.all([call('site_policy',{host:'a.mblock.test',policy:{paused:true}}),call('site_policy',{host:'b.mblock.test',policy:{generic:true}})]);
+ const concurrent=(await call('state')).settings.sites;assert.equal(concurrent['a.mblock.test'].paused,true);assert.equal(concurrent['b.mblock.test'].generic,true);
+ await call('settings',{patch:{autoUpdate:false}});assert.equal(await worker.evaluate(()=>chrome.alarms.get('update')),undefined);
+ passed.push('configurable update alarm and concurrent site policies preserve both edits');
+ const labels={title:'Block element',instruction:'Choose an element',preview:'Preview',save:'Save filter',again:'Pick another',cancel:'Cancel',failed:'Could not save'};
+ const pickerCDP=await context.newCDPSession(site);
+ async function pickerButton(text) {
+  const {root}=await pickerCDP.send('DOM.getDocument',{depth:-1,pierce:true});
+  function find(n){if(n.nodeName==='BUTTON' && n.children?.some(c=>c.nodeValue===text))return n;for(const child of [...(n.children||[]),...(n.shadowRoots||[])]){const match=find(child);if(match)return match;}}
+  const n=find(root);assert.ok(n,'picker button '+text);const {model}=await pickerCDP.send('DOM.getBoxModel',{backendNodeId:n.backendNodeId});
+  const q=model.border;await site.mouse.click((q[0]+q[4])/2,(q[1]+q[5])/2);
+ }
+ await call('picker_start',{tabId,labels});
+ await site.locator('h1').click();await pickerButton('Preview');assert.equal(await site.locator('h1').isVisible(),false);
+ await pickerButton('Cancel');assert.equal(await site.locator('h1').isVisible(),true);
+ assert.ok(!(await call('state')).settings.customRules.includes('##h1'));
+ await call('picker_start',{tabId,labels});await site.locator('h1').click();await pickerButton('Save filter');
+ await site.waitForFunction(()=>getComputedStyle(document.querySelector('h1')).display==='none');
+ assert.ok((await call('state')).settings.customRules.includes('127.0.0.1##h1'));
+ await site.reload();await site.waitForFunction(()=>getComputedStyle(document.querySelector('h1')).display==='none');
+ // A forged save without a UI-created capability must not change filters.
+ const forged=await worker.evaluate(async tabId=>{const r=await chrome.scripting.executeScript({target:{tabId},func:async()=>chrome.runtime.sendMessage({type:'picker_save',token:'forged',selector:'body'})});return r[0].result;},tabId);
+ assert.equal(forged.ok,false);
+ const afterPicker=(await call('state')).settings.customRules;
+ await call('settings',{patch:{customRules:afterPicker.replace('127.0.0.1##h1\n','')}});await site.reload();
+ passed.push('element picker previews, cancels, persists on reload and rejects forged saves');
  await dashboard.locator('#refresh-tabs').click();await dashboard.locator('#tab').selectOption(String(tabId));await dashboard.locator('#analyze').click();await dashboard.waitForFunction(()=>document.querySelector('#assistant-result').textContent.includes('mblock-site-analysis-v2'));
  assert.equal(await dashboard.locator('#apply-known-fix').isDisabled(),true);assert.equal(await dashboard.locator('#apply-known-fix').evaluate(e=>getComputedStyle(e).cursor),'default');assert.equal(await dashboard.locator('#apply-known-fix').getAttribute('aria-busy'),null);assert.match(await dashboard.locator('#known-fix-status').textContent(),/No known fix/);passed.push('unavailable known fix explains why and uses a normal cursor after analysis');
  await worker.evaluate(()=>{globalThis.__executeOriginal=chrome.scripting.executeScript;chrome.scripting.executeScript=options=>options.func?.name==='probeSite'?new Promise(()=>{}):globalThis.__executeOriginal(options);});

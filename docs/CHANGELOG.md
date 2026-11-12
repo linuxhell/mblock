@@ -1,3 +1,7 @@
+# 0.3.0 — 2026-11-12
+
+Seletor de elementos com prévia e persistência por domínio; atualização automática configurável e baseada na idade das listas; reutilização de compilação/índices; correções de concorrência e identidade de documentos; suporte conservador a denyallow, placeholders e hostnames simples; README em três idiomas; distribuição sem fontes ou Firefox sem assinatura. Auditoria em `AUDIT-0.3.0.md`.
+
 # 0.2.1
 
 - Recuperação adicional no player do YouTube para anúncios que escapam dos filtros: botão de pular visível primeiro, avanço limitado da mídia apenas com estado de anúncio e sinais visuais corroborando. Sem alteração de velocidade, volume ou autoplay.

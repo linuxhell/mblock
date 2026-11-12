@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import { SOURCES, LIMITS, VERSION } from './sources.js';
+import { validUpdateInterval } from './update-policy.js';
 import { validHost } from './core.js';
 import { compileLists } from './compiler.js';
 const OPTIONS = ['enabled', 'autoUpdate', 'genericCosmetic', 'fixes', 'youtube'];
@@ -19,7 +20,7 @@ export function validateConfiguration(config) {
   const out = {};
   for (const key of Object.keys(config)) if (![...OPTIONS, 'sites', 'sourceIds', 'customRules', 'intervalHours'].includes(key)) throw new Error('Campo de configuração não suportado: ' + key);
   for (const key of OPTIONS) if (key in config) { if (typeof config[key] !== 'boolean') throw new Error('Preferência booleana inválida: ' + key); out[key] = config[key]; }
-  if ('intervalHours' in config && config.intervalHours !== 12) throw new Error('O intervalo de atualização do backup não é suportado.');
+  if ('intervalHours' in config) { if (!validUpdateInterval(config.intervalHours)) throw new Error('O intervalo de atualização do backup não é suportado.'); out.intervalHours = config.intervalHours; }
   if ('customRules' in config) out.customRules = normalizeRules(config.customRules);
   if ('sourceIds' in config) {
     if (!Array.isArray(config.sourceIds) || config.sourceIds.length > SOURCES.length || !config.sourceIds.every(id => SOURCES.some(s => s.id === id))) throw new Error('O backup contém uma lista desconhecida.');
