@@ -49,13 +49,11 @@ async function reloadAndWait(tabId) {
 }
 async function attachDiagnosticPage(tabId, until) {
   const message = { type: 'diagnostic_state', enabled: true, until };
-  try { await bounded(api.tabs.sendMessage(tabId, message, { frameId: 0 })); }
-  catch (error) {
-    if (!/receiving end|establish connection|message port closed/i.test(errMessage(error))) { event('diagnostic_page_unavailable', { tabId, error: errMessage(error) }, 'warn'); return; }
-    try {
-      await bounded(api.scripting.executeScript({ target: { tabId, frameIds: [0] }, world: 'ISOLATED', files: ['content.js'] }));
-      await bounded(api.tabs.sendMessage(tabId, message, { frameId: 0 })); event('diagnostic_page_reattached', { tabId });
-    } catch (retryError) { event('diagnostic_page_unavailable', { tabId, error: errMessage(retryError) }, 'warn'); }
+  try {
+    await bounded(api.scripting.executeScript({ target: { tabId, frameIds: [0] }, world: 'ISOLATED', files: ['diagnostic-content.js'] }));
+    await bounded(api.tabs.sendMessage(tabId, message, { frameId: 0 }));
+  } catch (error) {
+    event('diagnostic_page_unavailable', { tabId, error: errMessage(error) }, 'warn');
   }
 }
 const area = api.storage.session || api.storage.local;
@@ -310,7 +308,12 @@ async function exportReport() {
 async function handle(message, sender) {
   if (!message || typeof message.type !== 'string') throw new Error('Mensagem inválida.');
   await initialize(); await expireDiagnostic();
-  if (message.type === 'frame_ready') { if (!sender.tab || !hostFromURL(sender.url)) throw new Error('Origem inválida.'); return applyCosmetics(sender, message.documentKey); }
+  if (message.type === 'frame_ready') {
+    if (!sender.tab || !hostFromURL(sender.url)) throw new Error('Origem inválida.');
+    const state = await applyCosmetics(sender, message.documentKey);
+    if (state.diagnostic && sender.frameId === 0) attachDiagnosticPage(sender.tab.id, state.diagnosticUntil).catch(() => {});
+    return state;
+  }
   if (message.type === 'page_diagnostic') {
     if (!sender.tab || !activeFor(sender.tab.id)) return {};
     const p = message.payload || {};
