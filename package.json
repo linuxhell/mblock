@@ -1,6 +1,6 @@
 {
   "name": "mblock",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": true,
   "type": "module",
   "description": "Bloqueador com regras nativas, seleção de elementos e diagnóstico local por site.",
