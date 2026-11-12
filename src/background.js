@@ -436,11 +436,15 @@ async function handle(message, sender) {
       if (loaderHost && loaderHost !== host) event('antiadblock_fix_rule_installed', { host, loaderHost, observedLoaderUrl: loaderUrl ? redactURL(loaderUrl, true) : '', learnedRules: nextRules.length });
       await bounded(api.scripting.executeScript({ target: { tabId: tab.id, frameIds: [0] }, world: 'MAIN', files: ['resources/antiadblock-core-marker.js'] }));
       await reloadAndWait(tab.id);
+      await new Promise(resolve => setTimeout(resolve, 1200));
       const verifiedEvidence = await siteEvidence(tab.id);
-      const state = verifiedEvidence.antiAdblockCore?.fixState || 'not-run';
-      const verified = state === 'redirected' || state === 'overlay-removed';
-      event(verified ? 'antiadblock_fix_verified' : 'antiadblock_fix_unverified', { host, state, loaderHost: verifiedEvidence.antiAdblockCore?.loaderHost || '', overlayRemovals: verifiedEvidence.antiAdblockCore?.overlayRemovals || 0 }, verified ? 'info' : 'warn');
-      return { fix: 'antiadblock-core-v4', configured: true, learned: !!loaderHost && loaderHost !== host, loaderHost, reloaded: true, verified, state, trace: verifiedEvidence.antiAdblockCore || null };
+      const verifiedAnalysis = analyzeEvidence(verifiedEvidence, settings);
+      const verifiedProposal = verifiedAnalysis.proposals.find(x => x.id === 'antiadblock-core-v4');
+      const state = verifiedProposal?.fixState || verifiedEvidence.antiAdblockCore?.fixState || 'not-run';
+      const verified = verifiedProposal?.enabled === true;
+      const verification = verifiedProposal?.verification || 'pending';
+      event(verified ? 'antiadblock_fix_verified' : 'antiadblock_fix_unverified', { host, state, verification, warningPresent: !!verifiedEvidence.warningPresent, loaderHost: verifiedEvidence.antiAdblockCore?.loaderHost || '', overlayRemovals: verifiedEvidence.antiAdblockCore?.overlayRemovals || 0 }, verified ? 'info' : 'warn');
+      return { fix: 'antiadblock-core-v4', configured: true, learned: !!loaderHost && loaderHost !== host, loaderHost, reloaded: true, verified, state, verification, warningPresent: !!verifiedEvidence.warningPresent, trace: verifiedEvidence.antiAdblockCore || null };
     }
     case 'clear_logs': journal.clear(); await area.set({ journal: journal.toJSON() }); return {};
     case 'export': return exportReport();
