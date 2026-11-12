@@ -2,7 +2,7 @@
 // Local evidence classifier, NOT a generative AI model. Never claims certainty
 // from a visible warning alone, and never executes downloaded code.
 import { hostFromURL, domainMatches, sitePolicy } from './core.js';
-import { builtInRules } from './fixes.js';
+import { ANTIADBLOCK_CORE_REGEXES, builtInRules } from './fixes.js';
 import { YOUTUBE_PROFILE } from './youtube-profile.js';
 import { isYouTube } from './site-scripts.js';
 export function analyzeEvidence(evidence, settings, runtime = {}) {
@@ -14,9 +14,9 @@ export function analyzeEvidence(evidence, settings, runtime = {}) {
   if (markers.has('ad-inserter ai_adb_process_blocks')) engines.push({ name: 'WordPress Ad Inserter anti-adblock module', confidence: 'high', evidence: ['inline function signature: ai_adb_process_blocks'], version: 'not verified' });
   if (scripts.some(s => /\/(?:fuckadblock|blockadblock)(?:[.-][\d.]+)?(?:\.min)?\.js(?:[?#]|$)/i.test(s))) engines.push({ name: 'BlockAdBlock / FuckAdBlock family', confidence: 'medium', evidence: ['external script filename signature'], version: 'not verified' });
   const knownRules = builtInRules({});
-  const loader = scripts.find(s => domainMatches(hostFromURL(s), 'fcportables.com') && knownRules.some(r => new RegExp(r.condition.regexFilter).test(s)));
+  const loader = scripts.find(s => ANTIADBLOCK_CORE_REGEXES.some(regexFilter => new RegExp(regexFilter).test(s)));
   const proposals = [];
-  if (host && domainMatches(host, 'fcportables.com') && core && loader) proposals.push({ id: 'fcportables-core-v1', mechanism: 'rotating external loader with fallback', kind: 'packaged_redirect', confidence: 'high', enabled: settings.fixes !== false && settings.sites?.['fcportables.com']?.fixes !== false, rules: knownRules, validation: 'observed loader signature; isolated fixture regression test; live page requires verification', automaticallyGenerated: false });
+  if (host && core && loader) proposals.push({ id: 'antiadblock-core-v1', mechanism: 'rotating external loader with fallback', kind: 'packaged_redirect', confidence: 'high', enabled: settings.fixes !== false, rules: knownRules, validation: 'observed AntiAdblockCore markers plus reviewed rotating loader signature; global packaged redirect; fixture regression test; live behavior can vary', automaticallyGenerated: false });
   let youtube;
   if (isYouTube(host)) {
     const profile = runtime.youtubeProfile || YOUTUBE_PROFILE, policy = sitePolicy({ enabled: true, genericCosmetic: false, ...settings }, host);

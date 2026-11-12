@@ -13,12 +13,13 @@ test('redaction removes credentials, query values, fragments and paths by defaul
  const detail=redactURL(u,true);assert.ok(detail.includes('/private/token'));for(const x of ['password','secret','private#','user:'])assert.ok(!detail.includes(x));assert.ok(detail.includes('access_token=…'));
 });
 test('ring buffer remains bounded and reports dropped events',()=>{const r=new RingBuffer(2);r.push(1);r.push(2);r.push(3);assert.deepEqual(r.entries,[2,3]);assert.equal(r.dropped,1);r.clear();assert.equal(r.entries.length,0);});
-test('FC Portables fix matches the observed rotating loader and fallback but not normal scripts',()=>{
- const matches=url=>builtInRules({}).some(r=>r.condition.requestDomains.some(d=>domainMatches(hostFromURL(url),d))&&new RegExp(r.condition.regexFilter).test(url));
+test('global AntiAdblockCore fix matches reviewed rotating loaders but not normal scripts',()=>{
+ const matches=url=>builtInRules({}).some(r=>new RegExp(r.condition.regexFilter).test(url));
  assert.ok(matches('https://z9snqc.fcportables.com/4245c2/4b7ea0/main.fb71facc6f58dac3.min.js?ver=3.7.1'));
- assert.ok(matches('https://www.fcportables.com/a1bc2d/app.fb71facc6f58dac3.js?ver=1.2.3'));
+ assert.ok(matches('https://cdn.filecatchers.com/a1bc2d/app.fb71facc6f58dac3.js?ver=1.2.3'));
+ assert.ok(matches('https://cdn.example.net/a1bc2d/app.fb71facc6f58dac3.js?ver=1.2.3'));
  assert.ok(!matches('https://www.fcportables.com/wp-includes/js/jquery/jquery.min.js?ver=3.7.1'));
- assert.ok(!matches('https://evilfcportables.com/a1bc2d/fb71facc6f58dac3.js?ver=1.2.3'));
+ assert.ok(!matches('https://cdn.example.net/a1bc2d/app.1234.js?ver=1.2.3'));
  assert.equal(builtInRules({fixes:false}).length,0);
 });
 

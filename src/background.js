@@ -388,11 +388,12 @@ async function handle(message, sender) {
         if (!current.youtubePlayback?.active || current.youtubePlayback.profileHash !== YOUTUBE_PROFILE.hash) for (const file of YOUTUBE_PROFILE.files) await bounded(api.scripting.executeScript({ target: { tabId: tab.id, frameIds: [0] }, world: file.world, files: [file.path] }));
         event('known_fix_enabled', { host, fix: 'youtube-v1', appliedToOpenTab: true }); return {};
       }
-      if (!host || !domainMatches(host, 'fcportables.com')) throw new Error('Não há correção conhecida para este site.');
+      if (!host) throw new Error('Não há correção conhecida para este site.');
       const evidence = await siteEvidence(tab.id);
-      const analysis = analyzeEvidence(evidence, settings); if (!analysis.proposals.some(x => x.id === 'fcportables-core-v1')) throw new Error('A assinatura conhecida não foi encontrada.');
-      await serial(() => changeSettings({ fixes: true, sites: { ...settings.sites, 'fcportables.com': { ...settings.sites['fcportables.com'], fixes: true } } }));
-      event('known_fix_enabled', { host, fix: 'fcportables-core-v1' }); return {};
+      const analysis = analyzeEvidence(evidence, settings);
+      if (!analysis.proposals.some(x => x.id === 'antiadblock-core-v1')) throw new Error('A assinatura conhecida não foi encontrada.');
+      await serial(() => changeSettings({ fixes: true }));
+      event('known_fix_enabled', { host, fix: 'antiadblock-core-v1', scope: 'global' }); return {};
     }
     case 'clear_logs': journal.clear(); await area.set({ journal: journal.toJSON() }); return {};
     case 'export': return exportReport();
