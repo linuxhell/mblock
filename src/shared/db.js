@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import { encodeSnapshot, decodeSnapshot, boundedWrites, updatePreferencesOnly } from './snapshot-storage.js';
 import { originsForRule, expandOrigins } from './provenance.js';
+import { nextConfigurationTime } from './control-state.js';
 let opening;
 export function openDB() {
   return opening ||= new Promise((resolve, reject) => {
@@ -91,7 +92,7 @@ export async function commitPreferences(patch) {
       if (--remaining || active.result?.storageFormat !== 'shared-v1' || !metadata.result) return;
       // Updating a download preference needs neither filter data nor native rules.
       // Both the new configuration and its rollback are committed atomically.
-      const at = new Date().toISOString(), settings = {...active.result.settings,...patch};
+      const at = nextConfigurationTime(active.result.at), settings = {...active.result.settings,...patch};
       tx.objectStore('snapshots').put(active.result, 'previous');
       tx.objectStore('snapshots').put({...active.result,at,settings}, 'active');
       result = {...metadata.result,at,settings,hasPrevious:true};
@@ -101,7 +102,34 @@ export async function commitPreferences(patch) {
     tx.oncomplete = () => resolve(result); tx.onerror = () => reject(tx.error); tx.onabort = () => reject(tx.error);
   });
 }
+export async function configurationState() {
+  const db=await openDB();
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction(['meta','snapshots']),snapshot=tx.objectStore('snapshots').get('active'),metadata=tx.objectStore('meta').get('active');
+    tx.oncomplete=()=>resolve({snapshot:snapshot.result,metadata:metadata.result});
+    tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);
+  });
+}
+export async function putControlIntent(record) {
+  if(record.storageFormat!=='shared-v1')throw Error('Configuração persistida inválida.');
+  const db=await openDB();
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction('meta','readwrite');tx.objectStore('meta').put(record,'pending');
+    tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);
+  });
+}
+export async function commitControls(plan) {
+  const db=await openDB();
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction(['meta','snapshots','rules'],'readwrite'),snapshots=tx.objectStore('snapshots'),rules=tx.objectStore('rules');
+    snapshots.put(plan.previous,'previous');snapshots.put(plan.next,'active');tx.objectStore('meta').put(plan.metadata,'active');
+    for(const rule of plan.previous.extraRules)rules.delete(rule.id);
+    for(const rule of plan.next.extraRules)rules.put({rule,origins:[{source:'mblock',filter:'Controle local / correção específica'}]},rule.id);
+    tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);
+  });
+}
 export async function commitSnapshot(snapshot, previous, { cosmeticsChanged = true, rulesChanged = true } = {}) {
+  const metadata={at:snapshot.at,engineVersion:snapshot.engineVersion,settings:snapshot.settings,sources:snapshot.sources,stats:{...snapshot.compiled.stats,nativeRules:snapshot.rules.length},report:snapshot.compiled.report,target:snapshot.target,hasPrevious:!!previous};
   const index = new Map();
   if (cosmeticsChanged) for (const item of snapshot.compiled.cosmetics) {
     for (const domain of (item.include.length ? item.include : [item.exception ? '!global' : '*'])) { if (!index.has(domain)) index.set(domain, []); index.get(domain).push(item); }
@@ -126,14 +154,20 @@ export async function commitSnapshot(snapshot, previous, { cosmeticsChanged = tr
     }
     if (rulesChanged) tx.objectStore('meta').put(snapshot.compiled.provenanceEncoding || null, 'ruleProvenanceEncoding');
     boundedWrites(tx, operations());
-    tx.objectStore('meta').put({ at: snapshot.at, engineVersion: snapshot.engineVersion, settings: snapshot.settings, sources: snapshot.sources, stats: { ...snapshot.compiled.stats, nativeRules: snapshot.rules.length }, report: snapshot.compiled.report, target: snapshot.target, hasPrevious: !!previous }, 'active');
+    tx.objectStore('meta').put(metadata, 'active');
     tx.objectStore('meta').put(snapshot.compiled.hideExceptions, 'hideExceptions');
-    tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); tx.onabort = () => reject(tx.error);
+    tx.oncomplete = () => resolve(metadata); tx.onerror = () => reject(tx.error); tx.onabort = () => reject(tx.error);
   });
 }
-export async function getCosmetics(host, generic = true) {
-  const parts = host.split('.'), keys = generic ? ['*', '!global'] : ['!global'];
-  while (parts.length >= 2) { keys.push(parts.join('.')); parts.shift(); }
-  const lists = await Promise.all(keys.map(k => get('cosmetics', k)));
-  return lists.flatMap(x => x || []);
+export async function getCosmeticData(host, generic = true) {
+  const parts=host.split('.'),keys=generic?['*','!global']:['!global'];
+  while(parts.length>=2){keys.push(parts.join('.'));parts.shift();}
+  const db=await openDB();
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction(['cosmetics','meta']),store=tx.objectStore('cosmetics');
+    const requests=keys.map(key=>store.get(key)),exceptions=tx.objectStore('meta').get('hideExceptions');
+    tx.oncomplete=()=>resolve({cosmetics:requests.flatMap(r=>r.result||[]),hideExceptions:exceptions.result||[]});
+    tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);
+  });
 }
+export async function getCosmetics(host,generic=true){return (await getCosmeticData(host,generic)).cosmetics;}

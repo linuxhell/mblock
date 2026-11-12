@@ -16,12 +16,14 @@ import { probeYouTubePlayback } from './shared/youtube-playback.js';
 import { probeSite } from './shared/site-probe.js';
 import { updateAlarm, validUpdateInterval, unchangedLists } from './shared/update-policy.js';
 import { installElementPicker } from './shared/element-picker.js';
+import { CosmeticCache } from './shared/cosmetic-cache.js';
+import { controlsOnly, planControlChange, nextConfigurationTime } from './shared/control-state.js';
 const api = globalThis.browser || chrome;
 const dnr = api.declarativeNetRequest;
 const bootstrapIds = api.runtime.getManifest().declarative_net_request.rule_resources.filter(r => r.id.startsWith('bootstrap')).map(r => r.id);
 let settings, metadata, target, activeDiagnostic = null, journal, mutation = Promise.resolve(), updating = false;
 let initPromise, flushTimer, diagnosticAttached = false, diagCount = 0, rulesChanging = false;
-const cssByDocument = new Map();
+const cssByDocument = new Map(), cosmeticCache = new CosmeticCache();
 async function bounded(promise, milliseconds = 3000) {
   let timer;
   try { return await Promise.race([promise, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('O site demorou para responder. Recarregue a aba e tente novamente.')), milliseconds); })]); }
@@ -59,7 +61,7 @@ function requireUI(sender) { if (!isUI(sender)) throw new Error('Operação perm
 function targetName() { return BUILD_TARGET; }
 function availableLimit() { return Math.min(30000, dnr.MAX_NUMBER_OF_DYNAMIC_RULES || 5000); }
 function allRules(compiled, config) { return [...compiled.rules, ...builtInRules(config), ...controlRules(config)].map((rule, i) => ({ ...rule, id: i + 1 })); }
-function snapshot(compiled, config, sources, texts) { return { at: new Date().toISOString(), engineVersion: VERSION, target, compiled, rules: allRules(compiled, config), settings: config, sources, texts }; }
+function snapshot(compiled, config, sources, texts) { return { at: nextConfigurationTime(metadata?.at), transactionId:crypto.randomUUID(), engineVersion: VERSION, target, compiled, rules: allRules(compiled, config), settings: config, sources, texts }; }
 function rebuildSnapshot(old) { const config = { ...DEFAULT_SETTINGS, ...old.settings }, lists = [...old.texts]; if (config.customRules.trim()) lists.push({ id: 'custom', text: config.customRules }); return snapshot(compileLists(lists, { target, maxRules: availableLimit() - 200 }), config, old.sources, old.texts); }
 async function activate(...args) { rulesChanging = true; try { return await installSnapshot(...args); } finally { rulesChanging = false; } }
 async function installSnapshot(next, previous, saveSettings = true) {
@@ -78,7 +80,8 @@ async function installSnapshot(next, previous, saveSettings = true) {
       applied = true;
     }
     await syncSiteScripts(api, next.settings);
-    await db.commitSnapshot(next, previous, { cosmeticsChanged:next.compiled !== previous?.compiled, rulesChanged:applied || next.compiled !== previous?.compiled });
+    metadata=await db.commitSnapshot(next, previous, { cosmeticsChanged:next.compiled !== previous?.compiled, rulesChanged:applied || next.compiled !== previous?.compiled });
+    settings=next.settings;
   } catch (error) {
     // The browser update is atomic. Restore the old rules if the DB commit failed.
     try { if (applied) { await dnr.updateDynamicRules({ removeRuleIds: next.rules.map(r => r.id), addRules: oldRules }); } await syncSiteScripts(api, oldSettings); }
@@ -86,11 +89,10 @@ async function installSnapshot(next, previous, saveSettings = true) {
     await db.put('meta', 'pending', null);
     throw error;
   }
-  if (saveSettings) { await api.storage.local.set({ settings: next.settings }); settings = next.settings; }
+  if (saveSettings) await api.storage.local.set({settings}).catch(error=>event('settings_cache_write_failed',{error:errMessage(error)},'warn'));
   await db.put('meta', 'pending', null);
-  metadata = await db.get('meta', 'active');
   await dnr.updateEnabledRulesets({ disableRulesetIds: bootstrapIds });
-  cssByDocument.clear();
+  cssByDocument.clear(); cosmeticCache.clear();
 }
 async function initialize() {
   if (initPromise) return initPromise;
@@ -106,7 +108,7 @@ async function initialize() {
       const previous = await db.get('snapshots', 'active');
       await dnr.updateDynamicRules({ removeRuleIds: (await dnr.getDynamicRules()).map(r => r.id), addRules: pending.rules });
       await syncSiteScripts(api, pending.settings);
-      await db.commitSnapshot(pending, previous);
+      if (!pending.transactionId || pending.transactionId !== previous?.transactionId) await db.commitSnapshot(pending, previous);
       settings = pending.settings; await api.storage.local.set({ settings }); await db.put('meta', 'pending', null);
       event('transaction_recovered');
     }
@@ -155,14 +157,45 @@ async function updateLists() {
   } catch (error) { event('update_failed_previous_retained', { error: errMessage(error) }, 'error'); throw error; }
   finally { updating = false; }
 }
+async function changeControls(patch) {
+  if(!controlsOnly(patch))return false;
+  const plan=planControlChange(await db.configurationState(),patch);if(!plan)return false;
+  const oldSettings=settings,oldRules=plan.previous.extraRules,nextRules=plan.next.extraRules;
+  if(plan.metadata.stats.nativeRules>availableLimit())throw Error('Limite de regras dinâmicas excedido; configuração anterior mantida.');
+  if(dnr.isRegexSupported)for(const rule of nextRules.filter(r=>r.condition.regexFilter)){
+    const result=await dnr.isRegexSupported({regex:rule.condition.regexFilter,isCaseSensitive:rule.condition.isUrlFilterCaseSensitive===true});
+    if(!result.isSupported)throw Error('Regex incompatível: '+(result.reason||'unknown'));
+  }
+  const scriptsChanged=Object.keys(patch).some(key=>['enabled','youtube','sites'].includes(key));
+  await db.putControlIntent(plan.next);rulesChanging=true;let applied=false;
+  try{
+    try{
+      if(!sameRules(oldRules,nextRules)){await dnr.updateDynamicRules({removeRuleIds:oldRules.map(r=>r.id),addRules:nextRules});applied=true;}
+      if(scriptsChanged)await syncSiteScripts(api,plan.next.settings);
+      await db.commitControls(plan);
+    }catch(error){
+      try{
+        if(applied)await dnr.updateDynamicRules({removeRuleIds:nextRules.map(r=>r.id),addRules:oldRules});
+        if(scriptsChanged)await syncSiteScripts(api,oldSettings);
+      }catch(rollbackError){event('critical_recovery_needed',{error:errMessage(rollbackError)},'error');throw Error('Falha na restauração. Reinicie a extensão para recuperar a transação.');}
+      await db.put('meta','pending',null);throw error;
+    }
+    settings=plan.next.settings;metadata=plan.metadata;
+    // The DB is authoritative; a failed settings mirror must not undo a commit.
+    await api.storage.local.set({settings}).catch(error=>event('settings_cache_write_failed',{error:errMessage(error)},'warn'));
+    await db.put('meta','pending',null);cssByDocument.clear();cosmeticCache.clear();
+    await api.alarms.clear('update');await scheduleUpdate();event('settings_changed',{keys:Object.keys(patch)});return true;
+  }finally{rulesChanging=false;}
+}
 async function changeSettings(patch) {
   const preferences = await db.commitPreferences(patch);
   if (preferences) {
     settings = preferences.settings; metadata = preferences;
-    await api.storage.local.set({ settings });
+    await api.storage.local.set({settings}).catch(error=>event('settings_cache_write_failed',{error:errMessage(error)},'warn'));
     await api.alarms.clear('update'); await scheduleUpdate();
     event('settings_changed', { keys:Object.keys(patch) }); return;
   }
+  if(await changeControls(patch))return;
   const old = await db.get('snapshots', 'active');
   const next = { ...settings, ...patch };
   let sources = [...old.sources];
@@ -222,7 +255,8 @@ async function startDiagnostic(tabId, details, durationSeconds = LIMITS.diagSeco
   if (isYouTube(hostFromURL(tab.url))) youtubeRuntime(tabId).then(probe => { if (activeFor(tabId)) event('youtube_profile', { tabId, profile: YOUTUBE_PROFILE.id, hash: YOUTUBE_PROFILE.hash, filters: YOUTUBE_PROFILE.count, enabled: !sitePolicy(settings, hostFromURL(tab.url)).paused && sitePolicy(settings, hostFromURL(tab.url)).youtube, applied: probe.youtubePlayback?.active && probe.youtubePlayback?.profileHash === YOUTUBE_PROFILE.hash, scope: 'top_frame', player: probe.youtubePlayer, playback: probe.youtubePlayback }); }).catch(() => {});
 }
 async function applyCosmetics(sender, documentKey) {
-  const host = hostFromURL(sender.url), topHost = hostFromURL((await api.tabs.get(sender.tab.id)).url);
+  const host = hostFromURL(sender.url);
+  const topHost = sender.frameId === 0 ? host : hostFromURL(sender.tab.url) || hostFromURL((await api.tabs.get(sender.tab.id)).url);
   const topPolicy = sitePolicy(settings, topHost), policy = sitePolicy(settings, host);
   const diagnostic = !!activeFor(sender.tab.id) && sender.frameId === 0;
   const diagnosticUntil = diagnostic ? activeDiagnostic.until : null;
@@ -230,18 +264,17 @@ async function applyCosmetics(sender, documentKey) {
   const identity = sender.documentId || (typeof documentKey === 'string' && /^[a-z0-9-]{1,80}$/i.test(documentKey) ? documentKey : '');
   const key = sender.tab.id + ':' + sender.frameId + ':' + identity;
   if (identity && cssByDocument.has(key)) return { selectors: cssByDocument.get(key), diagnostic, diagnosticUntil };
-  const cos = await db.getCosmetics(host, topPolicy.generic && policy.generic);
-  const current = await db.get('meta', 'hideExceptions') || [];
-  const selectors = cosmeticSelectors({ cosmetics: cos, hideExceptions: current }, host, topPolicy.generic && policy.generic);
+  const generic=topPolicy.generic&&policy.generic,revision=cosmeticCache.revision;
+  const result=await cosmeticCache.load(host+':'+Number(generic),async()=>{
+    const selectors=cosmeticSelectors(await db.getCosmeticData(host,generic),host,generic);
+    return {selectors:selectors.length,css:selectors.map(s=>':is('+s+'){display:none!important;}').join('\n')};
+  });
+  if(revision!==cosmeticCache.revision)return applyCosmetics(sender,documentKey);
   if (cssByDocument.size > 500) cssByDocument.clear();
-  if (selectors.length) {
-    // :is() is forgiving: one obsolete CSS selector cannot invalidate its neighbours.
-    const css = selectors.map(s => ':is(' + s + '){display:none!important;}').join('\n');
-    await api.scripting.insertCSS({ target: { tabId: sender.tab.id, frameIds: [sender.frameId] }, css, origin: 'USER' });
-  }
-  if (identity) cssByDocument.set(key, selectors.length);
-  if (diagnostic) event('cosmetics_applied', { tabId: sender.tab.id, host, selectors: selectors.length, generic: topPolicy.generic && policy.generic });
-  return { selectors: selectors.length, diagnostic, diagnosticUntil };
+  if(result.selectors)await api.scripting.insertCSS({target:{tabId:sender.tab.id,frameIds:[sender.frameId]},css:result.css,origin:'USER'});
+  if(identity)cssByDocument.set(key,result.selectors);
+  if(diagnostic)event('cosmetics_applied',{tabId:sender.tab.id,host,selectors:result.selectors,generic});
+  return {selectors:result.selectors,diagnostic,diagnosticUntil};
 }
 async function exportReport() {
   await expireDiagnostic();

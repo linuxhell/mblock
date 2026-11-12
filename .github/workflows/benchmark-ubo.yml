@@ -22,7 +22,7 @@ jobs:
       - run: npm run build
       - name: Build previous version with exactly the same lists
         run: |
-          git worktree add --detach /tmp/mblock-before 67a00f87782fd21ef41eee8bf03e173e1f2424ec
+          git worktree add --detach /tmp/mblock-before 3d7d8874c152720a72ad224ecd29b86c49899e5b
           ln -s "$GITHUB_WORKSPACE/node_modules" /tmp/mblock-before/node_modules
           mkdir -p /tmp/mblock-before/data
           cp -a data/cache /tmp/mblock-before/data/cache
@@ -44,6 +44,7 @@ jobs:
           MBLOCK_PREVIOUS: /tmp/mblock-before/dist/chrome
           MBLOCK_BASELINE: /tmp/ubo/uBlock0.chromium
           MBLOCK_BENCH_RUNS: '7'
+          MBLOCK_MAINTENANCE_RUNS: '3'
         run: npm run benchmark
       - name: Repeat comparison in reverse order
         env:
@@ -51,8 +52,28 @@ jobs:
           MBLOCK_PREVIOUS: /tmp/mblock-before/dist/chrome
           MBLOCK_BASELINE: /tmp/ubo/uBlock0.chromium
           MBLOCK_BENCH_RUNS: '7'
+          MBLOCK_MAINTENANCE_RUNS: '3'
           MBLOCK_BENCH_REVERSE: '1'
           MBLOCK_BENCH_OUTPUT: test-results/benchmark-reverse.json
+        run: npm run benchmark
+      - name: Measure 24 same-origin frames
+        env:
+          MBLOCK_BROWSER_PATH: /home/runner/.cache/ms-playwright/chromium-1161/chrome-linux/chrome
+          MBLOCK_PREVIOUS: /tmp/mblock-before/dist/chrome
+          MBLOCK_BASELINE: /tmp/ubo/uBlock0.chromium
+          MBLOCK_BENCH_RUNS: '7'
+          MBLOCK_BENCH_FRAMES: '24'
+          MBLOCK_BENCH_OUTPUT: test-results/benchmark-frames.json
+        run: npm run benchmark
+      - name: Measure 24 same-origin frames in reverse order
+        env:
+          MBLOCK_BROWSER_PATH: /home/runner/.cache/ms-playwright/chromium-1161/chrome-linux/chrome
+          MBLOCK_PREVIOUS: /tmp/mblock-before/dist/chrome
+          MBLOCK_BASELINE: /tmp/ubo/uBlock0.chromium
+          MBLOCK_BENCH_RUNS: '7'
+          MBLOCK_BENCH_FRAMES: '24'
+          MBLOCK_BENCH_OUTPUT: test-results/benchmark-frames-reverse.json
+          MBLOCK_BENCH_REVERSE: '1'
         run: npm run benchmark
       - uses: actions/upload-artifact@v4
         if: always()

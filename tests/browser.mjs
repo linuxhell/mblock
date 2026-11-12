@@ -61,6 +61,14 @@ try {
  await site.waitForFunction(()=>getComputedStyle(document.querySelector('.mblock-sponsored')).display==='none');
  assert.equal(await site.evaluate(()=>!!window.adResourceLoaded),false); passed.push('native blocking + scoped cosmetics, essential script preserved');
  const tabId=await worker.evaluate(async url=>(await chrome.tabs.query({})).find(t=>t.url===url).id,site.url());
+ await worker.evaluate(()=>{globalThis.__cosmeticReads=0;globalThis.__transactionOriginal=IDBDatabase.prototype.transaction;IDBDatabase.prototype.transaction=function(stores,...args){if((Array.isArray(stores)?stores:[stores]).includes('cosmetics'))globalThis.__cosmeticReads++;return globalThis.__transactionOriginal.call(this,stores,...args)}});
+ await site.reload();await site.waitForFunction(()=>getComputedStyle(document.querySelector('.mblock-sponsored')).display==='none');
+ const cosmeticReads=await worker.evaluate(()=>globalThis.__cosmeticReads);
+ await site.reload();await site.waitForFunction(()=>getComputedStyle(document.querySelector('.mblock-sponsored')).display==='none');
+ assert.equal(await worker.evaluate(()=>globalThis.__cosmeticReads),cosmeticReads);
+ await worker.evaluate(()=>{IDBDatabase.prototype.transaction=globalThis.__transactionOriginal;delete globalThis.__transactionOriginal;delete globalThis.__cosmeticReads});
+ passed.push('warm host CSS cache avoids repeated cosmetic transactions and still hides ads');
+
 
  // Alarm changes and two concurrent site edits must both survive serialization.
  await call('settings',{patch:{autoUpdate:true,intervalHours:6}});
@@ -90,7 +98,7 @@ try {
  const forged=await worker.evaluate(async tabId=>{const r=await chrome.scripting.executeScript({target:{tabId},func:async()=>chrome.runtime.sendMessage({type:'picker_save',token:'forged',selector:'body'})});return r[0].result;},tabId);
  assert.equal(forged.ok,false);
  const afterPicker=(await call('state')).settings.customRules;
- await call('settings',{patch:{customRules:afterPicker.replace('127.0.0.1##h1\n','')}});await site.reload();
+ await call('settings',{patch:{customRules:afterPicker.replace('127.0.0.1##h1\n','')}});await site.reload();await site.waitForFunction(()=>getComputedStyle(document.querySelector('h1')).display!=='none');
  passed.push('element picker previews, cancels, persists on reload and rejects forged saves');
  await dashboard.locator('#refresh-tabs').click();await dashboard.locator('#tab').selectOption(String(tabId));await dashboard.locator('#analyze').click();await dashboard.waitForFunction(()=>document.querySelector('#assistant-result').textContent.includes('mblock-site-analysis-v2'));
  assert.equal(await dashboard.locator('#apply-known-fix').isDisabled(),true);assert.equal(await dashboard.locator('#apply-known-fix').evaluate(e=>getComputedStyle(e).cursor),'default');assert.equal(await dashboard.locator('#apply-known-fix').getAttribute('aria-busy'),null);assert.match(await dashboard.locator('#known-fix-status').textContent(),/No known fix/);passed.push('unavailable known fix explains why and uses a normal cursor after analysis');
@@ -103,6 +111,25 @@ try {
  await call('site_policy',{host:'127.0.0.1',policy:{paused:false}});await site.reload();await site.waitForFunction(()=>window.essentialLoaded===true);assert.equal(await site.evaluate(()=>!!window.adResourceLoaded),false);
  await call('settings',{patch:{enabled:false}});await site.reload();await site.waitForFunction(()=>window.adResourceLoaded===true);passed.push('global pause works');
  await call('settings',{patch:{enabled:true}});
+
+ const controlProbe=await worker.evaluate(async()=>{
+  const database=await new Promise((resolve,reject)=>{const r=indexedDB.open('mblock-v1',1);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});
+  const tx=database.transaction(['snapshots','meta']),active=tx.objectStore('snapshots').get('active'),meta=tx.objectStore('meta').get('active');
+  await new Promise((resolve,reject)=>{tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)});database.close();
+  globalThis.__controlChanges=[];globalThis.__controlOriginal=chrome.declarativeNetRequest.updateDynamicRules;
+  chrome.declarativeNetRequest.updateDynamicRules=async change=>{globalThis.__controlChanges.push(change);return globalThis.__controlOriginal(change)};
+  return {base:meta.result.stats.nativeRules-active.result.extraRules.length,dataKey:active.result.dataKey};
+ });
+ await call('settings',{patch:{enabled:false}});await call('settings',{patch:{enabled:true}});
+ const controlChanges=await worker.evaluate(()=>{chrome.declarativeNetRequest.updateDynamicRules=globalThis.__controlOriginal;delete globalThis.__controlOriginal;const changes=globalThis.__controlChanges;delete globalThis.__controlChanges;return changes});
+ assert.equal(controlChanges.length,2);assert.ok(controlChanges.every(c=>c.removeRuleIds.every(id=>id>controlProbe.base)&&c.addRules.every(r=>r.id>controlProbe.base)));
+ passed.push('control changes replace only local tail rules and preserve the compiled network index');
+ await worker.evaluate(()=>{globalThis.__storageOriginal=chrome.storage.local.set;chrome.storage.local.set=data=>data.settings?Promise.reject(Error('Simulated settings mirror failure')):globalThis.__storageOriginal(data)});
+ await call('settings',{patch:{enabled:false}});assert.equal((await call('state')).settings.enabled,false);
+ await site.reload();await site.waitForFunction(()=>window.adResourceLoaded===true);
+ await worker.evaluate(()=>{chrome.storage.local.set=globalThis.__storageOriginal;delete globalThis.__storageOriginal});
+ await call('settings',{patch:{enabled:true}});await site.reload();await site.waitForFunction(()=>window.essentialLoaded===true);assert.equal(await site.evaluate(()=>!!window.adResourceLoaded),false);
+ passed.push('settings mirror failure keeps committed native and persistent configuration consistent');
  const rulesBefore=await worker.evaluate(async()=>JSON.stringify(await chrome.declarativeNetRequest.getDynamicRules()));
  await worker.evaluate(()=>{globalThis.__originalFetch=fetch;globalThis.fetch=(url,options)=>String(url).startsWith('https://raw.githubusercontent.com/')?Promise.reject(new Error('Simulated offline update')):globalThis.__originalFetch(url,options);});
  await assert.rejects(()=>call('update'),/Simulated offline/);
