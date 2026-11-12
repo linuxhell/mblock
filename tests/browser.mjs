@@ -87,8 +87,8 @@ try {
   const q=model.border;await site.mouse.click((q[0]+q[4])/2,(q[1]+q[5])/2);
  }
  await call('picker_start',{tabId,labels});
- await site.locator('h1').click();await site.screenshot({path:'test-results/element-picker.png'});await pickerButton('Preview');assert.equal(await site.locator('h1').isVisible(),false);
- await pickerButton('Cancel');assert.equal(await site.locator('h1').isVisible(),true);
+ await site.locator('h1').click();await site.screenshot({path:'test-results/element-picker.png'});await pickerButton('Preview');await site.waitForFunction(()=>getComputedStyle(document.querySelector('h1')).display==='none');assert.equal(await site.locator('h1').isVisible(),false);
+ await pickerButton('Cancel');await site.waitForFunction(()=>getComputedStyle(document.querySelector('h1')).display!=='none');assert.equal(await site.locator('h1').isVisible(),true);
  assert.ok(!(await call('state')).settings.customRules.includes('##h1'));
  await call('picker_start',{tabId,labels});await site.locator('h1').click();await pickerButton('Save filter');
  await site.waitForFunction(()=>getComputedStyle(document.querySelector('h1')).display==='none');
