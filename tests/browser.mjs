@@ -8,6 +8,7 @@ import { chromium } from 'playwright';
 const profile = await mkdtemp(tmpdir() + '/mblock-test-');
 await mkdir('test-results', { recursive: true });
 const passed = [], errors = [];
+const expectedVersion = JSON.parse(await readFile('package.json', 'utf8')).version;
 const fixture = `<!doctype html><title>mBlock test</title><h1>Content must remain visible</h1><div class="mblock-sponsored">Advertisement fixture</div><script src="/mblock-resource.js"></script><script src="/essential.js"></script>`;
 const server = createServer((req, res) => { res.setHeader('Cache-Control','no-store'); if (req.url.startsWith('/mblock-resource.js')) { res.setHeader('Content-Type','text/javascript'); res.end('window.adResourceLoaded=true'); } else if (req.url.startsWith('/essential.js')) { res.setHeader('Content-Type','text/javascript'); res.end('window.essentialLoaded=true'); } else { res.setHeader('Content-Type','text/html'); res.end(fixture); } });
 await new Promise((r,j)=>{server.once('error',j);server.listen(0,'127.0.0.1',r);});
@@ -46,7 +47,7 @@ try {
  await context.close();context=await chromium.launchPersistentContext(profile,launchOptions);
  context.on('serviceworker',w=>w.on('console',m=>{if(m.type()==='error')errors.push(m.text());}));
  dashboard=await context.newPage();await dashboard.goto('chrome-extension://'+id+'/ui/dashboard.html');worker=context.serviceWorkers()[0]||await context.waitForEvent('serviceworker',{timeout:60000});
- const migrated=await call('state');assert.equal(migrated.metadata.engineVersion,'0.3.0');assert.equal(migrated.settings.customRules,'||migration-preserved.example^\n');assert.equal(migrated.settings.sites['migration.example'].paused,true);assert.equal(migrated.settings.youtube,true);assert.ok((await call('logs')).entries.some(e=>e.type==='engine_upgraded'));assert.ok((await call('logs')).entries.some(e=>e.type==='transaction_recovered'));passed.push('legacy snapshot and pending transaction recover without losing personal filters or site policies');
+ const migrated=await call('state');assert.equal(migrated.metadata.engineVersion,expectedVersion);assert.equal(migrated.settings.customRules,'||migration-preserved.example^\n');assert.equal(migrated.settings.sites['migration.example'].paused,true);assert.equal(migrated.settings.youtube,true);assert.ok((await call('logs')).entries.some(e=>e.type==='engine_upgraded'));assert.ok((await call('logs')).entries.some(e=>e.type==='transaction_recovered'));passed.push('legacy snapshot and pending transaction recover without losing personal filters or site policies');
  for(const [language,tag,label,placeholder] of [['pt_BR','pt-BR','Doar via PayPal','Nenhuma análise ainda.'],['zh_CN','zh-CN','通过 PayPal 捐赠','尚未进行分析。'],['en','en-US','Donate with PayPal','No analysis yet.']]){
    await dashboard.locator('[data-language]').selectOption(language);
    await dashboard.waitForFunction(({tag,label})=>document.documentElement.lang===tag&&document.querySelector('[data-donate]')?.textContent===label,{tag,label});

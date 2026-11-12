@@ -1,13 +1,14 @@
-mBlock 0.3.0
+mBlock 0.3.1
 
-- Proteção nativa com o conjunto padrão completo na primeira inicialização, antes do término do worker.
-- Removido o rótulo alfa; isso não certifica superioridade ao uBlock Origin.
-- Seletor visual de elementos com prévia, cancelamento e regras persistentes por domínio.
-- Atualização automática configurável em 1, 6, 12, 24 ou 48 horas; restauração do agendamento conforme a idade das listas.
-- Reutilização da compilação e dos índices quando o conteúdo não mudou; preferências simples não recompilam listas.
-- Correção de atualizações simultâneas de perfis e identidade do cache CSS por documento.
-- Melhor compatibilidade com `denyallow`, opções `_` e domínios sem âncora explícita.
-- README em português, inglês e chinês simplificado.
-- Distribuição apenas de Chrome, Edge e XPI assinado pela Mozilla, com checksums. Sem ZIP de fontes como asset.
+- Nova versão de código para Chrome, Edge e Firefox; a 0.3.0 assinada permanece como versão anterior.
+- Redução de RSS em estado estacionário: diagnóstico pesado sai do caminho normal e passa a ser carregado sob demanda apenas no frame principal.
+- Scanner AntiAdblockCore global mais leve; a lógica pesada de recuperação só é alocada quando os marcadores conhecidos aparecem.
+- Menos alocações no worker: regras DNR compiladas são reutilizadas sem clonagem em massa e a promise de inicialização é liberada após o bootstrap.
+- Regras AntiAdblockCore aprendidas usam o caminho leve de controle e redirecionamento DNR por host de loader rotativo.
+- Correção AntiAdblockCore v4 com aprendizado de loaderHost, native redirect e fallback de document-start verificado.
+- Seletor visual mais robusto contra modais que recriam elementos com IDs dinâmicos.
+- Benchmark de memória corrigido para excluir renderer do dashboard e medir estado estacionário após GC de forma equivalente entre extensões.
+- Em benchmark sintético controlado, o mBlock ficou abaixo do uBlock Origin 1.76.0 em RSS total nos cenários simples e de 24 frames; isso não demonstra superioridade geral em todos os sites ou máquinas.
+- Mantidas as políticas de distribuição: Chrome/Edge em ZIP, Firefox apenas como XPI assinado na release pública e checksums SHA-256.
 
-O compilador ainda suporta parte da sintaxe uBO. Consulte a auditoria e as limitações no README. Resultados sintéticos de desempenho não demonstram superioridade em todos os sites.
+O compilador ainda suporta apenas parte da sintaxe uBO. Resultados de desempenho são sintéticos e não substituem validação de eficácia, compatibilidade e cobertura de filtros.
