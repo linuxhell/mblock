@@ -1,6 +1,6 @@
 # Assinatura e distribuição Firefox
 
-A release 0.3.0 deve conter apenas Chrome, Edge, XPI assinado e checksums. Não publique ZIP Firefox sem assinatura nem ZIP de fontes como assets.
+A release 0.3.1 deve conter apenas Chrome, Edge, XPI assinado e checksums. Não publique ZIP Firefox sem assinatura nem ZIP de fontes como assets.
 
 ## Caminho automatizado
 
