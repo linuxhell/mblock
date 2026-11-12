@@ -16,8 +16,8 @@ function renderSite() {
   if (selectedTab()) $('#test-origin').value = selectedTab().url;
 }
 function renderKnownFix(result) {
-  const available = result?.proposals.some(proposal => !proposal.enabled);
-  const message = !result ? 'Analise o site para verificar correções disponíveis.' : !result.proposals.length ? 'Nenhuma correção conhecida disponível para este site.' : available ? 'Correção disponível. Ative e recarregue o site.' : 'A correção conhecida já está ativa. Recarregue o site para aplicar.';
+  const available = result?.proposals.some(proposal => !proposal.enabled && proposal.available !== false);
+  const message = !result ? 'Analise o site para verificar correções disponíveis.' : !result.proposals.length ? 'Nenhuma correção conhecida disponível para este site.' : result.proposals.every(proposal => proposal.available === false) ? 'A proteção está pausada. Reative-a para usar a correção.' : available ? 'Correção disponível. Ative e recarregue o site.' : 'A correção conhecida já está ativa. Recarregue o site para aplicar.';
   setDisabled($('#apply-known-fix'), !available); $('#known-fix-status').textContent = t(message);
 }
 function renderDiagnostic() {

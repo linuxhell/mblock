@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Isolated world. No page globals, DOM markers, permanent observers or polling.
 (() => {
+  if (globalThis.__mblockContentAttached) return;
+  globalThis.__mblockContentAttached = true;
   const api = globalThis.browser || chrome;
   let diagnostic = false, errors = 0, stopped = false, lastScan = 0;
   let taskMs = 0, resourceListener, stopTimer, scanTimers = [];
@@ -41,18 +43,6 @@
   api.runtime.onMessage.addListener((message, sender, respond) => {
     if (sender.id !== api.runtime.id) return;
     if (message?.type === 'diagnostic_state') { if (message.enabled) enable(message.until); else disable(); respond({ ok: true }); }
-    if (message?.type === 'assistant_probe') {
-      const markers = [], scripts = [];
-      if (document.querySelector('script#antiadblock-core-js')) markers.push('antiadblock-core loader');
-      if (document.querySelector('meta[name="antiadblockcore-verification"]')) markers.push('antiadblock-core meta');
-      let examined = 0;
-      for (const script of [...document.scripts].slice(0, 150)) {
-        if (script.src) { try { const url = new URL(script.src); if (/^https?:$/.test(url.protocol)) { const query = [...url.searchParams.keys()].slice(0, 12).map(k => encodeURIComponent(k) + '=redacted').join('&'); scripts.push(url.origin + url.pathname.slice(0, 500) + (query ? '?' + query : '')); } } catch {} }
-        else if (examined < 500000) { const text = script.textContent.slice(0, 500000 - examined); examined += text.length; if (text.includes('ai_adb_process_blocks')) markers.push('ad-inserter ai_adb_process_blocks'); }
-      }
-      const text = pageText();
-      respond({ url: location.origin + '/', markers: [...new Set(markers)], scripts, warningPresent: /ad.?block.{0,30}(?:detect|disable)|(?:detect|disable).{0,30}ad.?block|bloqueador de anúncios detectado/.test(text) });
-    }
   });
   send('frame_ready').then(state => { if (state?.diagnostic) enable(state.diagnosticUntil); });
   document.addEventListener('DOMContentLoaded', scan, { once: true });

@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { AstFilterParser, utils } from '../vendor/ublock/src/js/static-filtering-parser.js';
 import { builtinScriptlets } from '../vendor/ublock/src/js/resources/scriptlets.js';
 import * as generator from '../vendor/ublock/src/js/make-scriptlets.js';
+import { installYouTubePlayback } from '../src/shared/youtube-playback.js';
 const ROOTS = ['youtube.com', 'youtube-nocookie.com', 'youtubekids.com'];
 const inScope = host => ROOTS.some(root => host === root || host.endsWith('.' + root));
 export async function buildYouTube(texts, target, dir) {
@@ -34,7 +35,7 @@ export async function buildYouTube(texts, target, dir) {
     if (entry.matches.size === 0 && entry.args.length) continue;
     generator.compile('mblock-youtube', { ...entry, args: [...entry.args], matches: [...entry.matches], excludeMatches: [...entry.excludeMatches] });
   }
-  const hash = createHash('sha256').update(upstream.commit + target + JSON.stringify(accepted)).digest('hex');
+  const hash = createHash('sha256').update(upstream.commit + target + JSON.stringify(accepted) + installYouTubePlayback.toString()).digest('hex');
   const secret = 'mblock-' + hash.slice(0, 32);
   const template = await readFile('vendor/ublock/src/js/scriptlet.template.js', 'utf8');
   const core = generator.commit('mblock-youtube', template, secret);
@@ -43,12 +44,14 @@ export async function buildYouTube(texts, target, dir) {
   const guard = `(() => {\n'use strict';\nif (!${JSON.stringify(ROOTS)}.some(root => location.hostname === root || location.hostname.endsWith('.' + root))) return;\n`;
   const files = [];
   await mkdir(dir + '/site', { recursive: true });
-  for (const world of ['MAIN', 'ISOLATED']) if (core[world]) {
+  for (const world of ['MAIN', 'ISOLATED']) if (core[world] || world === 'ISOLATED') {
     const path = 'site/youtube-' + world.toLowerCase() + '-' + hash.slice(0, 12) + '.js'; files.push({ world, path });
-    const code = guard + [framework[world].beginCode, core[world].code, framework[world].endCode].join('\n') + '\n})();\n';
+    const pieces = core[world] ? [framework[world].beginCode, core[world].code, framework[world].endCode] : [];
+    if (world === 'ISOLATED') pieces.push('(' + installYouTubePlayback.toString() + ')(' + JSON.stringify(hash) + ');');
+    const code = guard + pieces.join('\n') + '\n})();\n';
     await writeFile(dir + '/' + path, code);
   }
-  const profile = { id: 'youtube-v1', rules: accepted, count: accepted.length, uniqueScriptletCalls: entries.size, hash, upstream: { repository: upstream.repository, commit: upstream.commit }, sources: texts.filter(s => ['quick', 'ublock', 'privacy', 'unbreak'].includes(s.id)).map(s => ({ id: s.id, sha256: createHash('sha256').update(s.text).digest('hex') })), files, allFrames: false, rejected };
+  const profile = { id: 'youtube-v1', rules: accepted, count: accepted.length, uniqueScriptletCalls: entries.size, hash, playbackRecovery: true, upstream: { repository: upstream.repository, commit: upstream.commit }, sources: texts.filter(s => ['quick', 'ublock', 'privacy', 'unbreak'].includes(s.id)).map(s => ({ id: s.id, sha256: createHash('sha256').update(s.text).digest('hex') })), files, allFrames: false, rejected };
   await writeFile(dir + '/shared/youtube-profile.js', '// SPDX-License-Identifier: GPL-3.0-only\nexport const YOUTUBE_PROFILE = ' + JSON.stringify(profile) + ';\n');
   await writeFile(dir + '/data/youtube-profile.json', JSON.stringify(profile, null, 2) + '\n');
   return profile;

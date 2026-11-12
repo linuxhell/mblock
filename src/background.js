@@ -12,6 +12,8 @@ import { syncSiteScripts, isYouTube, scriptTargetsHost } from './shared/site-scr
 import { YOUTUBE_PROFILE } from './shared/youtube-profile.js';
 import { exportRules, planImport, normalizeRules } from './shared/rule-transfer.js';
 import { probeYouTubePlayer } from './shared/youtube-probe.js';
+import { probeYouTubePlayback } from './shared/youtube-playback.js';
+import { probeSite } from './shared/site-probe.js';
 const api = globalThis.browser || chrome;
 const dnr = api.declarativeNetRequest;
 let settings, metadata, target, activeDiagnostic = null, journal, mutation = Promise.resolve(), updating = false;
@@ -24,9 +26,22 @@ async function bounded(promise, milliseconds = 3000) {
 }
 async function youtubeRuntime(tabId) {
   let youtubePlayer; try { const results = await bounded(api.scripting.executeScript({ target: { tabId, frameIds: [0] }, world: 'MAIN', func: probeYouTubePlayer })); youtubePlayer = results[0]?.result || { probeFailed: true }; } catch { youtubePlayer = { probeFailed: true }; }
+  let youtubePlayback; try { const results = await bounded(api.scripting.executeScript({ target: { tabId, frameIds: [0] }, world: 'ISOLATED', func: probeYouTubePlayback })); youtubePlayback = results[0]?.result || null; } catch { youtubePlayback = null; }
   const scripts = await api.scripting.getRegisteredContentScripts();
   const host = hostFromURL((await api.tabs.get(tabId)).url);
-  return { youtubeProfile: YOUTUBE_PROFILE, youtubePlayer, youtubeRegistered: scripts.some(s => s.id.startsWith('mblock-youtube-') && scriptTargetsHost(s, host)) };
+  return { youtubeProfile: YOUTUBE_PROFILE, youtubePlayer, youtubePlayback, youtubeRegistered: scripts.some(s => s.id.startsWith('mblock-youtube-') && scriptTargetsHost(s, host)) };
+}
+async function siteEvidence(tabId) { const results = await bounded(api.scripting.executeScript({ target: { tabId, frameIds: [0] }, world: 'ISOLATED', func: probeSite })); return results[0]?.result; }
+async function attachDiagnosticPage(tabId, until) {
+  const message = { type: 'diagnostic_state', enabled: true, until };
+  try { await bounded(api.tabs.sendMessage(tabId, message, { frameId: 0 })); }
+  catch (error) {
+    if (!/receiving end|establish connection|message port closed/i.test(errMessage(error))) { event('diagnostic_page_unavailable', { tabId, error: errMessage(error) }, 'warn'); return; }
+    try {
+      await bounded(api.scripting.executeScript({ target: { tabId, frameIds: [0] }, world: 'ISOLATED', files: ['content.js'] }));
+      await bounded(api.tabs.sendMessage(tabId, message, { frameId: 0 })); event('diagnostic_page_reattached', { tabId });
+    } catch (retryError) { event('diagnostic_page_unavailable', { tabId, error: errMessage(retryError) }, 'warn'); }
+  }
 }
 const area = api.storage.session || api.storage.local;
 function serial(fn) { const p = mutation.then(fn, fn); mutation = p.catch(() => {}); return p; }
@@ -168,7 +183,13 @@ function detachDiagnostic() {
   diagnosticAttached = false;
 }
 async function expireDiagnostic() {
-  if (activeDiagnostic && activeDiagnostic.until <= Date.now()) { const tabId = activeDiagnostic.tabId; activeDiagnostic = null; detachDiagnostic(); await area.set({ activeDiagnostic: null }); await api.alarms.clear('diagnostic'); await bounded(api.tabs.sendMessage(tabId, { type: 'diagnostic_state', enabled: false }, { frameId: 0 })).catch(() => {}); event('diagnostic_stopped'); }
+  if (activeDiagnostic && activeDiagnostic.until <= Date.now()) {
+    const { tabId, host } = activeDiagnostic; activeDiagnostic = null; detachDiagnostic();
+    await area.set({ activeDiagnostic: null }); await api.alarms.clear('diagnostic');
+    await bounded(api.tabs.sendMessage(tabId, { type: 'diagnostic_state', enabled: false }, { frameId: 0 })).catch(() => {});
+    if (isYouTube(host)) try { const results = await bounded(api.scripting.executeScript({ target: { tabId, frameIds: [0] }, world: 'ISOLATED', func: probeYouTubePlayback })); event('youtube_playback_summary', { tabId, playback: results[0]?.result || null }); } catch {}
+    event('diagnostic_stopped');
+  }
 }
 async function startDiagnostic(tabId, details, durationSeconds = LIMITS.diagSeconds) {
   if (!Number.isInteger(tabId) || tabId < 0) throw new Error('Selecione uma aba de site.');
@@ -180,8 +201,8 @@ async function startDiagnostic(tabId, details, durationSeconds = LIMITS.diagSeco
   activeDiagnostic = { tabId, host: hostFromURL(tab.url), startedAt, until: startedAt + durationSeconds * 1000, durationSeconds, details: !!details };
   await area.set({ activeDiagnostic }); await api.alarms.create('diagnostic', { when: activeDiagnostic.until }); attachDiagnostic();
   event('diagnostic_started', { tabId, host: activeDiagnostic.host, durationSeconds, details: activeDiagnostic.details });
-  await bounded(api.tabs.sendMessage(tabId, { type: 'diagnostic_state', enabled: true, until: activeDiagnostic.until }, { frameId: 0 })).catch(() => {});
-  if (isYouTube(hostFromURL(tab.url))) youtubeRuntime(tabId).then(probe => { if (activeFor(tabId)) event('youtube_profile', { tabId, profile: YOUTUBE_PROFILE.id, hash: YOUTUBE_PROFILE.hash, filters: YOUTUBE_PROFILE.count, enabled: !sitePolicy(settings, hostFromURL(tab.url)).paused && sitePolicy(settings, hostFromURL(tab.url)).youtube, scope: 'top_frame', player: probe.youtubePlayer }); }).catch(() => {});
+  await attachDiagnosticPage(tabId, activeDiagnostic.until);
+  if (isYouTube(hostFromURL(tab.url))) youtubeRuntime(tabId).then(probe => { if (activeFor(tabId)) event('youtube_profile', { tabId, profile: YOUTUBE_PROFILE.id, hash: YOUTUBE_PROFILE.hash, filters: YOUTUBE_PROFILE.count, enabled: !sitePolicy(settings, hostFromURL(tab.url)).paused && sitePolicy(settings, hostFromURL(tab.url)).youtube, applied: probe.youtubePlayback?.active && probe.youtubePlayback?.profileHash === YOUTUBE_PROFILE.hash, scope: 'top_frame', player: probe.youtubePlayer, playback: probe.youtubePlayback }); }).catch(() => {});
 }
 async function applyCosmetics(sender) {
   const host = hostFromURL(sender.url), topHost = hostFromURL((await api.tabs.get(sender.tab.id)).url);
@@ -270,7 +291,7 @@ async function handle(message, sender) {
     case 'assistant_analyze': {
       if (!Number.isInteger(message.tabId) || message.tabId < 0) throw new Error('Selecione uma aba de site.');
       const tab = await api.tabs.get(message.tabId); if (!hostFromURL(tab.url)) throw new Error('Abra um site HTTP/HTTPS.');
-      let evidence; try { evidence = await bounded(api.tabs.sendMessage(tab.id, { type: 'assistant_probe' }, { frameId: 0 })); } catch { throw new Error('O site demorou para responder. Recarregue a aba e tente novamente.'); }
+      const evidence = await siteEvidence(tab.id);
       if (!evidence || hostFromURL(evidence.url) !== hostFromURL(tab.url)) throw new Error('Origem inválida.');
       const result = analyzeEvidence(evidence, settings, isYouTube(hostFromURL(tab.url)) ? await youtubeRuntime(tab.id) : {});
       event('assistant_analysis', { host: result.host, engines: result.engines.map(x => x.name), proposals: result.proposals.map(x => x.id), generativeAI: false });
@@ -278,9 +299,15 @@ async function handle(message, sender) {
     }
     case 'assistant_enable_known_fix': {
       const tab = await api.tabs.get(message.tabId); const host = hostFromURL(tab.url);
-      if (isYouTube(host) && YOUTUBE_PROFILE.count > 0) { await serial(() => changeSettings({ youtube: true, sites: { ...settings.sites, [host]: { ...settings.sites[host], youtube: true } } })); event('known_fix_enabled', { host, fix: 'youtube-v1' }); return {}; }
+      if (isYouTube(host) && YOUTUBE_PROFILE.count > 0) {
+        if (sitePolicy(settings, host).paused) throw new Error('Reative a proteção neste site antes de aplicar a correção.');
+        await serial(() => changeSettings({ youtube: true, sites: { ...settings.sites, [host]: { ...settings.sites[host], youtube: true } } }));
+        const current = await youtubeRuntime(tab.id);
+        if (!current.youtubePlayback?.active || current.youtubePlayback.profileHash !== YOUTUBE_PROFILE.hash) for (const file of YOUTUBE_PROFILE.files) await bounded(api.scripting.executeScript({ target: { tabId: tab.id, frameIds: [0] }, world: file.world, files: [file.path] }));
+        event('known_fix_enabled', { host, fix: 'youtube-v1', appliedToOpenTab: true }); return {};
+      }
       if (!host || !domainMatches(host, 'fcportables.com')) throw new Error('Não há correção conhecida para este site.');
-      const evidence = await bounded(api.tabs.sendMessage(tab.id, { type: 'assistant_probe' }, { frameId: 0 }));
+      const evidence = await siteEvidence(tab.id);
       const analysis = analyzeEvidence(evidence, settings); if (!analysis.proposals.some(x => x.id === 'fcportables-core-v1')) throw new Error('A assinatura conhecida não foi encontrada.');
       await serial(() => changeSettings({ fixes: true, sites: { ...settings.sites, 'fcportables.com': { ...settings.sites['fcportables.com'], fixes: true } } }));
       event('known_fix_enabled', { host, fix: 'fcportables-core-v1' }); return {};

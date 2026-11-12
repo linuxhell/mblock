@@ -4,7 +4,7 @@ Bloqueador experimental para **Chrome, Edge e Firefox**, com foco em bloqueio na
 
 **Meta: superar o uBlock Origin em casos demonstráveis, sem perder desempenho ou compatibilidade. Isso ainda não foi demonstrado.** Esta é uma base alfa; não é um substituto equivalente ao motor completo do uBlock Origin. Não existe promessa de invisibilidade a sites.
 
-A versão **0.2.0** adiciona importação/exportação e um perfil avançado específico para YouTube. Veja [o histórico](docs/CHANGELOG.md).
+A versão **0.2.1** reforça a recuperação de anúncios do YouTube e a análise de abas já abertas após atualização, preservando a importação/exportação. Veja [o histórico](docs/CHANGELOG.md).
 
 ## O que esta versão faz
 
@@ -20,6 +20,7 @@ A versão **0.2.0** adiciona importação/exportação e um perfil avançado esp
 - Inclui uma correção específica para o carregador anti-adblock observado no FC Portables em 11/11/2026. Sua assinatura de URL e o comportamento de fallback têm teste de regressão; isso não certifica todos os fluxos ou versões futuras do site.
 - Interface em inglês, português do Brasil e chinês simplificado, com detecção inicial do idioma e seletor manual. O ícone é um escudo preto com M vermelho.
 - Doação opcional via PayPal para `jv12802@gmail.com`, com textos e link nos três idiomas. Não há pagamento dentro da extensão nem abertura automática do PayPal.
+- No YouTube, uma recuperação adicional clica em botões de pular publicidade visíveis. Avanço até o fim de um anúncio exige estado de anúncio, interface publicitária visível e mídia finita/seekable; vídeos comuns, pausados e transmissões sem duração finita não são avançados. O registro do perfil e sua execução na aba atual são informados separadamente.
 - Assistente local que identifica assinaturas conhecidas de AntiAdblockCore, Ad Inserter e da família BlockAdBlock/FuckAdBlock, informa confiança e oferece a correção empacotada quando a assinatura verificada do FC Portables está presente.
 
 O assistente inicial é **heurístico, não uma IA generativa**. Não promete identificar versões ocultas, gerar regras arbitrárias ou validar automaticamente qualquer site. Uma IA para investigar mecanismos novos precisa de um componente adicional e de um ciclo de teste e reversão; esse recurso não está concluído nesta alfa.

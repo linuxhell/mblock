@@ -1,3 +1,11 @@
+# 0.2.1
+
+- Recuperação adicional no player do YouTube para anúncios que escapam dos filtros: botão de pular visível primeiro, avanço limitado da mídia apenas com estado de anúncio e sinais visuais corroborando. Sem alteração de velocidade, volume ou autoplay.
+- Observação apenas da classe do player no modo normal. Tentativas a cada 300 ms existem somente enquanto o player indica anúncio; busca inicial do player tem limite de 20 segundos.
+- Perfil e código da recuperação participam do hash empacotado. O diagnóstico distingue registro para navegações futuras da execução efetiva na aba atual, e exporta contadores de tentativas sem URLs de mídia.
+- A análise usa sondagem isolada sob demanda e funciona sem um receptor residente em abas antigas. A coleta de logs pode reconectar o script de diagnóstico após atualização.
+- Ativar a correção conhecida também aplica o perfil à aba aberta, respeitando pausa global/por site e evitando duplicar o módulo de recuperação.
+
 # 0.2.0
 
 - Exportação de regras pessoais como TXT e backup JSON de regras, perfis, preferências e IDs das listas selecionadas.
