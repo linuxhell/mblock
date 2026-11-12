@@ -32,3 +32,13 @@ test('rule equality preserves key-independent semantics and notices every rule c
  // A mismatch in length must not even inspect the potentially huge records.
  assert.equal(sameRules([{get id(){throw Error('must not serialize');}}],[]),false);
 });
+
+test('site policy exposes known-fix state and learned AntiAdblockCore loader creates a scoped redirect',()=>{
+ const settings={...DEFAULT_SETTINGS,sites:{'example.com':{fixes:false}}};
+ assert.equal(sitePolicy(settings,'www.example.com').fixes,false);
+ const learned=builtInRules({...DEFAULT_SETTINGS,antiAdblockCoreRules:[{siteHost:'www.filecatchers.com',loaderUrl:'https://qbp5y.filecatchers.com/rotating/core.js'}]});
+ const rule=learned.find(r=>r.condition.initiatorDomains?.includes('www.filecatchers.com'));
+ assert.ok(rule);assert.equal(rule.action.type,'redirect');assert.match(rule.condition.regexFilter,/qbp5y/);
+ assert.ok(new RegExp(rule.condition.regexFilter).test('https://qbp5y.filecatchers.com/rotating/core.js?v=1'));
+ assert.ok(!new RegExp(rule.condition.regexFilter).test('https://qbp5y.filecatchers.com/rotating/other.js?v=1'));
+});
