@@ -1,6 +1,8 @@
 name: Signed installation release
 on:
   workflow_dispatch:
+  push:
+    branches: ['release/dispatch-0.3.1']
 permissions:
   contents: write
 concurrency:
@@ -46,4 +48,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           version=$(node -p "JSON.parse(require('fs').readFileSync('package.json')).version")
-          gh release create "v$version" --target "$GITHUB_SHA" --title "mBlock $version" --notes-file docs/RELEASE_NOTES.md artifacts/mblock-chrome-"$version".zip artifacts/mblock-edge-"$version".zip artifacts/mblock-firefox-"$version".xpi artifacts/SHA256SUMS.txt
+          gh release create "v$version" --target "911df7ae73eecb44c29f805e9f29a193096a257e" --title "mBlock $version" --notes-file docs/RELEASE_NOTES.md artifacts/mblock-chrome-"$version".zip artifacts/mblock-edge-"$version".zip artifacts/mblock-firefox-"$version".xpi artifacts/SHA256SUMS.txt
