@@ -21,12 +21,12 @@ test('a warning alone never generates a rule or confidently names an engine',()=
 });
 test('known packaged AntiAdblockCore redirect is global once the reviewed family signature is observed',()=>{
  const result=analyzeEvidence({url:'https://other.example/',markers:['antiadblock-core loader','antiadblock-core meta'],scripts:['https://z9snqc.fcportables.com/4245c2/4b7ea0/main.fb71facc6f58dac3.min.js?ver=redacted']},{});
- assert.equal(result.engines.length,1);assert.equal(result.proposals.length,1);assert.equal(result.proposals[0].id,'antiadblock-core-v3');
+ assert.equal(result.engines.length,1);assert.equal(result.proposals.length,1);assert.equal(result.proposals[0].id,'antiadblock-core-v4');
 });
 
 test('FileCatchers AntiAdblockCore fix depends on engine markers, not loader URL shape',()=>{
  const result=analyzeEvidence({url:'https://www.filecatchers.com/',markers:['antiadblock-core loader','antiadblock-core meta'],scripts:['https://cdn.filecatchers.com/static/site.js']},{fixes:false,sites:{}});
- assert.equal(result.engines[0].confidence,'high');assert.equal(result.proposals.length,1);assert.equal(result.proposals[0].id,'antiadblock-core-v3');assert.equal(result.canApplyKnownFix,true);
+ assert.equal(result.engines[0].confidence,'high');assert.equal(result.proposals.length,1);assert.equal(result.proposals[0].id,'antiadblock-core-v4');assert.equal(result.canApplyKnownFix,true);
  const partial=analyzeEvidence({url:'https://www.filecatchers.com/',markers:['antiadblock-core loader'],scripts:[]},{fixes:false,sites:{}});
  assert.equal(partial.proposals.length,0);assert.equal(partial.canApplyKnownFix,false);
 });
@@ -35,14 +35,14 @@ test('AntiAdblockCore known fix is global and does not depend on a domain allowl
  const sites=['https://www.filecatchers.com/','https://mirror.example/','https://downloads.example.net/'];
  for (const url of sites) {
   const result=analyzeEvidence({url,markers:['antiadblock-core loader','antiadblock-core meta'],scripts:['https://cdn.example/4245c2/4b7ea0/main.fb71facc6f58dac3.min.js?ver=redacted']},{fixes:false,sites:{}});
-  assert.equal(result.proposals.length,1);assert.equal(result.proposals[0].id,'antiadblock-core-v3');assert.equal(result.canApplyKnownFix,true);
+  assert.equal(result.proposals.length,1);assert.equal(result.proposals[0].id,'antiadblock-core-v4');assert.equal(result.canApplyKnownFix,true);
  }
 });
 
 test('AntiAdblockCore repair is enabled only after the document verifies redirect or overlay suppression',()=>{
  const base={url:'https://www.filecatchers.com/',markers:['antiadblock-core loader','antiadblock-core meta'],scripts:[],antiAdblockCore:{loaderUrl:'https://qbp5y.filecatchers.com/a/b/core.js',loaderHost:'qbp5y.filecatchers.com',fixState:'marker-active',overlayRemovals:0}};
- const configured=analyzeEvidence(base,{fixes:true,sites:{},antiAdblockCoreRules:[{siteHost:'www.filecatchers.com',loaderUrl:base.antiAdblockCore.loaderUrl}]});
+ const configured=analyzeEvidence(base,{fixes:true,sites:{},antiAdblockCoreRules:[{siteHost:'www.filecatchers.com',loaderHost:'qbp5y.filecatchers.com'}]});
  assert.equal(configured.proposals[0].configured,true);assert.equal(configured.proposals[0].learned,true);assert.equal(configured.proposals[0].enabled,false);assert.equal(configured.canApplyKnownFix,true);
- const redirected=analyzeEvidence({...base,antiAdblockCore:{...base.antiAdblockCore,fixState:'redirected'}},{fixes:true,sites:{},antiAdblockCoreRules:[{siteHost:'www.filecatchers.com',loaderUrl:base.antiAdblockCore.loaderUrl}]});
+ const redirected=analyzeEvidence({...base,antiAdblockCore:{...base.antiAdblockCore,fixState:'redirected'}},{fixes:true,sites:{},antiAdblockCoreRules:[{siteHost:'www.filecatchers.com',loaderHost:'qbp5y.filecatchers.com'}]});
  assert.equal(redirected.proposals[0].enabled,true);assert.equal(redirected.canApplyKnownFix,false);assert.match(redirected.nextStep,/verified/);
 });
