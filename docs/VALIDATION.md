@@ -6,6 +6,8 @@ Esta alfa não demonstrou ser mais leve, mais completa ou menos detectável que 
 
 A integração Chromium passou em 11/11/2026, incluindo bloqueio, CSS, pausa, logger, falhas de atualização, rollback, exportação e fixture do carregador FC Portables. O teste identificou e corrigiu uma expressão regular que excedia a memória permitida pela API nativa; as duas expressões menores são verificadas antes de qualquer troca de regras.
 
+A versão 0.2.0 passou em 35 testes de unidade e 24 cenários de integração Chromium em 12/11/2026: migração das configurações 0.1, importação/exportação TXT e JSON, botão indisponível com cursor normal e motivo explícito, tempo limite para site sem resposta, diagnóstico padrão de 30 segundos e perfil YouTube. Os cenários YouTube verificam metadados iniciais, respostas fetch e XHR, clonagem de resposta e navegação interna com dados de player controlados; não certificam todos os anúncios do serviço ao vivo. Os arquivos dos três pacotes foram reproduzidos a partir do ZIP de fontes. Caches `_metadata` criados pelo Chromium durante o teste são excluídos da distribuição.
+
 O ambiente local de desenvolvimento restringe sockets de IPC do Chromium, então a execução de navegador ocorre em GitHub Actions. Não se deve interpretar uma análise de código ou um teste de expressão regular como confirmação de uma correção no site ao vivo.
 
 ## Camadas de teste

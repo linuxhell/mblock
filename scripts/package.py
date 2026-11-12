@@ -10,7 +10,10 @@ for target in ['chrome','edge','firefox']:
     output=artifacts/f'mblock-{target}-{version}.zip'
     with zipfile.ZipFile(output,'w',zipfile.ZIP_DEFLATED,compresslevel=9) as z:
         for p in sorted(source.rglob('*')):
-            if p.is_file(): z.write(p,p.relative_to(source))
+            relative=p.relative_to(source)
+            # Chromium creates compiled ruleset caches when CI loads dist/chrome.
+            # They are browser-owned files, not distributable extension sources.
+            if p.is_file() and '_metadata' not in relative.parts: z.write(p,relative)
     checks.append(hashlib.sha256(output.read_bytes()).hexdigest()+'  '+output.name)
     print(output.name,output.stat().st_size)
 source_output=artifacts/f'mblock-fontes-{version}.zip'

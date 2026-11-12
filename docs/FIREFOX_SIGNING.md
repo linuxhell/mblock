@@ -14,4 +14,4 @@ O linter pode mencionar `COINMINER_USAGE_DETECTED` em arquivos de dados da EasyP
 
 Permissões amplas de HTTP/HTTPS são usadas para CSS por site e diagnóstico da aba escolhida. `webRequest` é passivo e seus listeners só são ligados durante uma sessão de diagnóstico. Não há telemetria, upload de logs, cookies ou leitura de corpos de requisições. O PayPal abre somente por clique do usuário.
 
-Para reproduzir exatamente o pacote, extraia o arquivo de fontes, mantenha seu diretório `data/cache` e execute `npm ci`, `npm test`, `npm run build` e `npm run package`. Os dados e hashes correspondem à coleta usada nesta versão; não execute `fetch:lists` se deseja reproduzir o mesmo snapshot.
+Para reproduzir os arquivos da extensão, extraia o arquivo de fontes, mantenha seu diretório `data/cache` e execute `npm ci`, `npm test` e `npm run build`. Compacte o conteúdo de `dist/firefox`, mantendo `manifest.json` na raiz do ZIP. O comando `npm run package` é usado em um checkout Git; o ZIP de fontes não contém o histórico Git. Os dados e hashes correspondem à coleta usada nesta versão; não execute `fetch:lists` se deseja reproduzir o mesmo snapshot.
