@@ -2,7 +2,7 @@
 
 [Português](README.md) · [English](README.en.md) · [简体中文](README.zh-CN.md)
 
-Bloqueador para Chrome, Edge e Firefox, com regras nativas Manifest V3, controle por site e diagnóstico local. Versão **0.3.0**, sem o rótulo alfa. A mudança de nome não certifica equivalência ou superioridade ao uBlock Origin.
+Bloqueador para Chrome, Edge e Firefox, com regras nativas Manifest V3, controle por site e diagnóstico local. Versão **0.3.1**, sem o rótulo alfa. A mudança de nome não certifica equivalência ou superioridade ao uBlock Origin.
 
 ## O que oferece
 
