@@ -19,14 +19,14 @@ test('a warning alone never generates a rule or confidently names an engine',()=
  const result=analyzeEvidence({url:'https://unknown.example/',markers:[],scripts:[],warningPresent:true},{});
  assert.equal(result.engines.length,0);assert.equal(result.proposals.length,0);assert.equal(result.canAutomaticallyRepair,false);
 });
-test('known packaged redirect is restricted to the verified site',()=>{
+test('known packaged AntiAdblockCore redirect is global once the reviewed family signature is observed',()=>{
  const result=analyzeEvidence({url:'https://other.example/',markers:['antiadblock-core loader','antiadblock-core meta'],scripts:['https://z9snqc.fcportables.com/4245c2/4b7ea0/main.fb71facc6f58dac3.min.js?ver=redacted']},{});
- assert.equal(result.engines.length,1);assert.equal(result.proposals.length,0);
+ assert.equal(result.engines.length,1);assert.equal(result.proposals.length,1);assert.equal(result.proposals[0].id,'antiadblock-core-v1');
 });
 
 test('FileCatchers AntiAdblockCore loader gets the packaged known fix only with the reviewed rotating signature',()=>{
  const result=analyzeEvidence({url:'https://www.filecatchers.com/',markers:['antiadblock-core loader','antiadblock-core meta'],scripts:['https://cdn.filecatchers.com/4245c2/4b7ea0/main.fb71facc6f58dac3.min.js?ver=redacted']},{fixes:false,sites:{}});
- assert.equal(result.engines[0].confidence,'high');assert.equal(result.proposals.length,1);assert.equal(result.proposals[0].id,'filecatchers.com-core-v1');assert.equal(result.canApplyKnownFix,true);
+ assert.equal(result.engines[0].confidence,'high');assert.equal(result.proposals.length,1);assert.equal(result.proposals[0].id,'antiadblock-core-v1');assert.equal(result.canApplyKnownFix,true);
  const unverified=analyzeEvidence({url:'https://www.filecatchers.com/',markers:['antiadblock-core loader','antiadblock-core meta'],scripts:['https://cdn.filecatchers.com/static/site.js']},{fixes:false,sites:{}});
  assert.equal(unverified.proposals.length,0);assert.equal(unverified.canApplyKnownFix,false);
 });
