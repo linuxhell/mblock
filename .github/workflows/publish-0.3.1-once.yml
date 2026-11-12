@@ -9,78 +9,136 @@ jobs:
   publish:
     if: github.event.head_commit.message == 'Dispatch mBlock 0.3.1 published release'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: 911df7ae73eecb44c29f805e9f29a193096a257e
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-      - run: npm ci
-      - run: npm run fetch:lists
-      - run: npm run build
-      - run: node scripts/lint-firefox.mjs
-      - name: Download already signed Firefox 0.3.1 from public AMO API
+
+      - name: Download exact tested 0.3.1 artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          endpoints=(
-            "https://addons.mozilla.org/api/v5/addons/addon/mblock@linuxhell.github.io/versions/0.3.1/"
-            "https://addons.mozilla.org/api/v4/addons/mblock@linuxhell.github.io/versions/0.3.1/"
-          )
-          rm -f amo-version.json
-          for url in "${endpoints[@]}"; do
-            code=$(curl --location --silent --show-error --output amo-candidate.json --write-out '%{http_code}' "$url" || true)
-            echo "AMO API $url -> HTTP $code"
-            if [ "$code" = "200" ]; then
-              mv amo-candidate.json amo-version.json
-              break
-            fi
-          done
-          test -s amo-version.json || { echo 'Public AMO API did not expose signed 0.3.1'; exit 1; }
+          mkdir -p artifacts /tmp/mblock-signing
+          curl --fail --location --silent --show-error \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/artifacts/13984186613/zip" \
+            -o /tmp/mblock-installation.zip
+          unzip -q /tmp/mblock-installation.zip -d artifacts
+          cp artifacts/SHA256SUMS.txt /tmp/ci-SHA256SUMS.txt
+          (cd artifacts && sha256sum -c /tmp/ci-SHA256SUMS.txt)
+
+          curl --fail --location --silent --show-error \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/artifacts/13983615162/zip" \
+            -o /tmp/mblock-firefox-signing.zip
+          unzip -q /tmp/mblock-firefox-signing.zip -d /tmp/mblock-signing
+          test -s /tmp/mblock-signing/mblock-firefox-0.3.1-para-assinar.zip
+
+      - name: Reconstruct Mozilla-signed Firefox XPI
+        shell: bash
+        run: |
+          set -euo pipefail
           python3 - <<'PY'
+          import base64
+          import hashlib
           import json
-          data=json.load(open('amo-version.json', encoding='utf-8'))
-          urls=[]
-          def walk(x):
-              if isinstance(x, dict):
-                  for k,v in x.items():
-                      if k in ('download_url','url') and isinstance(v,str) and '.xpi' in v:
-                          urls.append(v)
-                      walk(v)
-              elif isinstance(x, list):
-                  for v in x: walk(v)
-          walk(data)
-          urls=list(dict.fromkeys(urls))
-          if not urls:
-              raise SystemExit('AMO version response contained no XPI URL')
-          open('amo-download-url.txt','w',encoding='utf-8').write(urls[0])
-          print('AMO signed XPI URL found')
+          import re
+          import zipfile
+          from pathlib import Path
+
+          unsigned = Path('/tmp/mblock-signing/mblock-firefox-0.3.1-para-assinar.zip')
+          out = Path('artifacts/mblock-firefox-0.3.1.xpi')
+          sig_root = Path('packaging/firefox/signatures/0.3.1/META-INF')
+
+          expected_signature_hashes = {
+              'cose.manifest': '03644d5f0c5eb6b5eaa5ac4c4aa1133365d5af5f0f9a69b8bc9b55390db526ad',
+              'cose.sig': '19935f1162ad399a250b98e95d5e374be34f8241b8ea3e62346bdd1fcaf68d33',
+              'manifest.mf': 'e028d8a559f2b1a035bd72e1461061a0473697663f52e0f22b2551817da995ce',
+              'mozilla.rsa': '3c178fb94da5dc54be0a444c71936e76542290f630c26e4d7becef4e7838b8b5',
+              'mozilla.sf': '6082b991896a00aef21bbbddef79466334f2a9652cd03a5e21a4c97640394dac',
+          }
+          for name, expected in expected_signature_hashes.items():
+              path = sig_root / name
+              got = hashlib.sha256(path.read_bytes()).hexdigest()
+              if got != expected:
+                  raise SystemExit(f'signature metadata hash mismatch: {name}')
+
+          with zipfile.ZipFile(unsigned) as src, zipfile.ZipFile(
+              out, 'w', zipfile.ZIP_DEFLATED, compresslevel=9
+          ) as dst:
+              for info in src.infolist():
+                  if info.is_dir():
+                      continue
+                  data = src.read(info.filename)
+                  if info.filename == 'manifest.json':
+                      data = data.rstrip(b'\r\n')
+                      if hashlib.sha256(data).hexdigest() != '2518569c923c67c45f6a9b0876a2d3bfaee0b271dea4cae5c212621edf27664d':
+                          raise SystemExit('signed manifest.json digest mismatch')
+                  dst.writestr(info.filename, data)
+              for name in sorted(expected_signature_hashes):
+                  dst.writestr(f'META-INF/{name}', (sig_root / name).read_bytes())
+
+          with zipfile.ZipFile(out) as z:
+              manifest = json.loads(z.read('manifest.json'))
+              if manifest.get('version') != '0.3.1':
+                  raise SystemExit('Firefox XPI version mismatch')
+              gecko = manifest.get('browser_specific_settings', {}).get('gecko', {})
+              if gecko.get('id') != 'mblock@linuxhell.github.io':
+                  raise SystemExit('Firefox XPI add-on id mismatch')
+
+              mf = z.read('META-INF/manifest.mf').decode('utf-8')
+              digest_errors = []
+              for block in re.split(r'\n\n+', mf.strip()):
+                  m_name = re.search(r'^Name: (.+)$', block, re.M)
+                  m_digest = re.search(r'^SHA256-Digest: (.+)$', block, re.M)
+                  if not (m_name and m_digest):
+                      continue
+                  name = m_name.group(1)
+                  got = base64.b64encode(hashlib.sha256(z.read(name)).digest()).decode()
+                  if got != m_digest.group(1):
+                      digest_errors.append(name)
+              if digest_errors:
+                  raise SystemExit('signed file digest mismatch: ' + ', '.join(digest_errors))
+
+              sf = z.read('META-INF/mozilla.sf').decode('utf-8')
+              expected = re.search(r'^SHA256-Digest-Manifest: (.+)$', sf, re.M)
+              actual = base64.b64encode(hashlib.sha256(z.read('META-INF/manifest.mf')).digest()).decode()
+              if not expected or expected.group(1) != actual:
+                  raise SystemExit('mozilla.sf manifest digest mismatch')
+
+          print('Firefox XPI reconstructed with exact Mozilla-signed entry bytes')
           PY
-          mkdir -p signed
-          curl --fail --location --silent --show-error "$(cat amo-download-url.txt)" -o signed/mblock-firefox-0.3.1.xpi
-          python3 - <<'PY'
-          import os, zipfile, json
-          p='signed/mblock-firefox-0.3.1.xpi'
-          if os.path.getsize(p) < 100000:
-              raise SystemExit('Downloaded XPI is unexpectedly small')
-          with zipfile.ZipFile(p) as z:
-              m=json.loads(z.read('manifest.json'))
-              if m.get('version') != '0.3.1':
-                  raise SystemExit('Downloaded XPI version mismatch')
-              names=set(z.namelist())
-              if not any(n.startswith('META-INF/') for n in names):
-                  raise SystemExit('Downloaded XPI has no Mozilla signature metadata')
-          print('Signed Firefox XPI validated')
-          PY
-      - name: Package release assets
-        run: python3 scripts/package.py --require-firefox --signed-firefox signed/mblock-firefox-0.3.1.xpi
+
+          openssl smime -verify -inform DER \
+            -in packaging/firefox/signatures/0.3.1/META-INF/mozilla.rsa \
+            -content packaging/firefox/signatures/0.3.1/META-INF/mozilla.sf \
+            -noverify -out /dev/null
+
+      - name: Finalize installation assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s artifacts/mblock-chrome-0.3.1.zip
+          test -s artifacts/mblock-edge-0.3.1.zip
+          test -s artifacts/mblock-firefox-0.3.1.xpi
+          (
+            cd artifacts
+            sha256sum \
+              mblock-chrome-0.3.1.zip \
+              mblock-edge-0.3.1.zip \
+              mblock-firefox-0.3.1.xpi > SHA256SUMS.txt
+          )
+          cat artifacts/SHA256SUMS.txt
+
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
+        shell: bash
         run: |
+          set -euo pipefail
           gh release create "v0.3.1" \
             --target "911df7ae73eecb44c29f805e9f29a193096a257e" \
             --title "mBlock 0.3.1" \
@@ -89,3 +147,5 @@ jobs:
             artifacts/mblock-edge-0.3.1.zip \
             artifacts/mblock-firefox-0.3.1.xpi \
             artifacts/SHA256SUMS.txt
+
+          gh release view "v0.3.1" --json tagName,name,url,isDraft,isPrerelease
