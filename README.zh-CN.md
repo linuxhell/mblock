@@ -2,7 +2,7 @@
 
 [Português](README.md) · [English](README.en.md) · [简体中文](README.zh-CN.md)
 
-适用于 Chrome、Edge 和 Firefox 的广告与跟踪器拦截扩展，使用 Manifest V3 原生规则，提供按网站控制和本地诊断。**0.3.1** 移除了 Alpha 标签。名称变更并不代表已达到或超越 uBlock Origin。
+适用于 Chrome、Edge 和 Firefox 的广告与跟踪器拦截扩展，使用 Manifest V3 原生规则，提供按网站控制和本地诊断。**0.3.2** 移除了 Alpha 标签。名称变更并不代表已达到或超越 uBlock Origin。
 
 ## 功能
 
