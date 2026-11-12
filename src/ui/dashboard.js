@@ -8,8 +8,8 @@ function renderSite() {
   $('#site-host').textContent = host || t('Selecione uma aba de site.');
   const p = sitePolicy(state.settings, host);
   $('#site-paused').checked = p.paused; $('#site-cosmetic').checked = p.cosmetic; $('#site-generic').checked = p.generic;
-  $('#site-fixes').checked = state.settings.sites?.['fcportables.com']?.fixes !== false && state.settings.fixes !== false;
-  $('#site-fixes').disabled = !/(^|\.)fcportables\.com$/.test(host);
+  $('#site-fixes').checked = host ? sitePolicy(state.settings, host).fixes : state.settings.fixes !== false;
+  $('#site-fixes').disabled = !host;
   setDisabled($('#save-site'), !host);
   for (const id of ['start', 'reload', 'analyze', 'site-paused', 'site-cosmetic', 'site-generic']) setDisabled($('#' + id), !host);
   renderKnownFix(null);
@@ -17,7 +17,8 @@ function renderSite() {
 }
 function renderKnownFix(result) {
   const available = result?.proposals.some(proposal => !proposal.enabled && proposal.available !== false);
-  const message = !result ? 'Analise o site para verificar correções disponíveis.' : !result.proposals.length ? 'Nenhuma correção conhecida disponível para este site.' : result.proposals.every(proposal => proposal.available === false) ? 'A proteção está pausada. Reative-a para usar a correção.' : available ? 'Correção disponível. Ative e recarregue o site.' : 'A correção conhecida já está ativa. Recarregue o site para aplicar.';
+  const proposal = result?.proposals.find(p => p.id?.startsWith('antiadblock-core')) || result?.proposals[0];
+  const message = !result ? 'Analise o site para verificar correções disponíveis.' : !result.proposals.length ? 'Nenhuma correção conhecida disponível para este site.' : result.proposals.every(proposal => proposal.available === false) ? 'A proteção está pausada. Reative-a para usar a correção.' : proposal?.enabled ? 'A correção conhecida foi verificada nesta página.' : proposal?.configured ? 'A correção está configurada, mas ainda não foi verificada. Aplique o reparo para aprender e interceptar o loader observado.' : available ? 'Correção disponível. Aplicar fará o reparo e verificará o resultado.' : 'A correção conhecida já está ativa.';
   setDisabled($('#apply-known-fix'), !available); $('#known-fix-status').textContent = t(message);
 }
 function renderDiagnostic() {
@@ -96,7 +97,7 @@ bind('#preview-import', async () => {
   $('#import-preview').textContent = lines.join('\n'); updateImportButton(); status('Prévia pronta. Revise as alterações e aplique a importação.');
 });
 bind('#apply-import', async () => { if (!importPreview) throw new Error('Valide o arquivo antes de importar.'); await call('rules_import_apply',{token:importPreview.token,allowUnsupported:$('#import-unsupported').checked}); invalidateImport(); await refresh(); status('Importação concluída. Recarregue os sites abertos.'); });
-bind('#save-site', async () => { const host = hostFromURL(selectedTab()?.url); await call('site_policy', { host, policy: { paused: $('#site-paused').checked, cosmetic: $('#site-cosmetic').checked, generic: $('#site-generic').checked } }); if (!$('#site-fixes').disabled) await call('site_policy', { host: 'fcportables.com', policy: { fixes: $('#site-fixes').checked } }); await refresh(); status('Perfil salvo. Recarregue a aba.'); });
+bind('#save-site', async () => { const host = hostFromURL(selectedTab()?.url); await call('site_policy', { host, policy: { paused: $('#site-paused').checked, cosmetic: $('#site-cosmetic').checked, generic: $('#site-generic').checked, fixes: $('#site-fixes').checked } }); await refresh(); status('Perfil salvo. Recarregue a aba.'); });
 bind('#start', async () => { await call('diagnostic_start', { tabId: Number($('#tab').value), details: $('#details').checked, durationSeconds: Number($('#diag-duration').value) }); await refresh(); await refreshLogs(); status('Diagnóstico iniciado. Recarregue o site e reproduza o problema.'); });
 bind('#stop', async () => { await call('diagnostic_stop'); await refresh(); status('Diagnóstico encerrado.'); });
 bind('#reload', async () => { if (!selectedTab()) throw new Error('Selecione uma aba.'); await api.tabs.reload(selectedTab().id); status('Aba recarregada.'); });
@@ -105,7 +106,7 @@ bind('#clear', async () => { await call('clear_logs'); await refreshLogs(); stat
 bind('#export', async () => { await saveReport(); status('Arquivo JSON exportado. Você pode anexá-lo aqui para análise.'); });
 bind('#simulate', async () => { const r = await call('simulate', { url: $('#test-url').value, initiator: $('#test-origin').value, resourceType: $('#test-type').value }); $('#test-result').textContent = JSON.stringify(r, null, 2); status('Simulação concluída.'); });
 bind('#analyze', async () => { const tab = selectedTab(); if (!tab) throw new Error('Selecione uma aba.'); renderKnownFix(null); const result = await call('assistant_analyze', { tabId: tab.id }); if (selectedTab()?.id !== tab.id) return; $('#assistant-result').textContent = JSON.stringify(result, null, 2); renderKnownFix(result); status('Análise concluída.'); });
-bind('#apply-known-fix', async () => { if (!selectedTab()) throw new Error('Selecione uma aba.'); await call('assistant_enable_known_fix', { tabId: selectedTab().id }); await refresh(); renderKnownFix({proposals:[{enabled:true}]}); status('Correção conhecida ativada. Recarregue a aba e repita o diagnóstico.'); });
+bind('#apply-known-fix', async () => { if (!selectedTab()) throw new Error('Selecione uma aba.'); status('Aplicando correção conhecida e verificando o resultado…'); const repair = await call('assistant_enable_known_fix', { tabId: selectedTab().id }); await refresh(); const analysis = await call('assistant_analyze', { tabId: selectedTab().id }); $('#assistant-result').textContent = JSON.stringify({ ...analysis, repair }, null, 2); renderKnownFix(analysis); await refreshLogs(); status(repair?.verified ? 'Correção aplicada e verificada.' : 'Correção aplicada, mas ainda não verificada. Exporte o diagnóstico para revisar o trace.'); });
 $('#tab').onchange = renderSite; $('#search').oninput = renderLogs;
 $('#live').onchange = () => { clearInterval(timer); if ($('#live').checked) timer = setInterval(() => refreshLogs().catch(e => status(e.message, true)), 2000); };
 window.addEventListener('pagehide', () => { clearInterval(timer); clearInterval(diagTimer); });
