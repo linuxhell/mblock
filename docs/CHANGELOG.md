@@ -1,5 +1,7 @@
 # 0.3.0 — 2026-11-12
 
+Segunda etapa de memória: comparação de regras sem grandes textos temporários e proveniência compactada sem perda de filtros ou diagnóstico. Mais 54–55 MiB de RSS economizados contra o build anterior, mantendo menor CPU/load que uBO na fixture. Diferença de RAM ainda em 40–44 MiB. Resultados em `MEMORY-SECOND-2026-11-12.md`.
+
 Otimização de memória: snapshots compartilham filtros imutáveis, gravações do índice limitadas a 32 requisições pendentes e alteração do agendamento sem recarregar listas. Migração e rollback preservados. RSS total 6,6–8,0% menor que o build anterior, com vantagem de velocidade sobre uBO na fixture; resultados em `MEMORY-2026-11-12.md`.
 
 Seletor de elementos com prévia e persistência por domínio; atualização automática configurável e baseada na idade das listas; reutilização de compilação/índices; correções de concorrência e identidade de documentos; suporte conservador a denyallow, placeholders e hostnames simples; README em três idiomas; distribuição sem fontes ou Firefox sem assinatura. Auditoria em `AUDIT-0.3.0.md`.

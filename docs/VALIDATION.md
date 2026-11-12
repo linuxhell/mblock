@@ -41,3 +41,5 @@ Para alegar superioridade, ampliar corpus e navegadores, verificar conteúdo/que
 ## Comparação de memória antes/depois
 
 O workflow também compila o commit 8db8963 com a mesma cópia das listas e executa duas rodadas em ordens inversas. `MBLOCK_PREVIOUS` aponta para esse pacote; `MBLOCK_BENCH_REVERSE=1` inverte a ordem. Os hashes e estatísticas dos dois builds mBlock devem coincidir. Os relatórios incluem consumo por processo e heap das extensões medido após as amostras de velocidade, sem GC forçado. Resultados e limites em [MEMORY-2026-11-12.md](MEMORY-2026-11-12.md).
+
+A referência atual de `MBLOCK_PREVIOUS` no workflow é o commit 525d676. Antes de medir, `scripts/verify-equivalence.mjs` compara todas as regras, cosméticos, exceções, estatísticas, relatórios, textos e origens contra o pacote anterior, incluindo reconstrução da proveniência compactada. O resultado mais recente está em [MEMORY-SECOND-2026-11-12.md](MEMORY-SECOND-2026-11-12.md).

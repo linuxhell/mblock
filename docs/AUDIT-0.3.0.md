@@ -63,3 +63,7 @@ Referências primárias: [uBO 1.76.0](https://github.com/gorhill/uBlock/releases
 ## Atualização de memória
 
 A [medição posterior](MEMORY-2026-11-12.md) compara o mesmo conjunto de listas antes/depois, em duas ordens. O compartilhamento de snapshots, a fila limitada e a gravação compacta das preferências de atualização reduziram RSS total em 6,6–8,0% e heap do worker em 55,4%, mantendo a vantagem de CPU/tempo sobre o uBO nesta fixture. RAM total continua maior que a do uBO. A validação passou a 45 testes Node, 3 Python e 35 verificações de navegador. Snapshots legados e recuperação após interrupção permanecem testados.
+
+## Segunda etapa de memória
+
+Comparação de regras sem serialização integral e proveniência com dicionários retiraram mais 54–55 MiB de RSS contra 525d676. A diferença para uBO ficou em 39,5–44,4 MiB, mantendo menor CPU/load na fixture. Nenhuma regra ou referência foi removida: a checagem diferencial percorre o conjunto completo antes de medir. Validado com 48 testes Node, 3 Python e 35 verificações de navegador. [Dados e limites](MEMORY-SECOND-2026-11-12.md).
