@@ -45,19 +45,26 @@ async function targetHeap(root,targetId) {
  }finally{await root.send('Target.detachFromTarget',{sessionId});}
 }
 async function measure(label, extensionPath){
- const setupStarted=performance.now();
- const profile=await mkdtemp(tmpdir()+'/mblock-bench-');let context,configuration,mblockWorker=null;
+ const profile=await mkdtemp(tmpdir()+'/mblock-bench-');let context,configuration;
  try{
   const extension=extensionPath?resolve(extensionPath):null;
   const manifest=extension?JSON.parse(await readFile(extension+'/manifest.json','utf8')):null;
-  context=await chromium.launchPersistentContext(profile,{channel:process.env.MBLOCK_BROWSER_PATH?undefined:'chromium',executablePath:process.env.MBLOCK_BROWSER_PATH||undefined,headless:true,ignoreDefaultArgs:['--disable-extensions'],args:['--no-sandbox','--no-proxy-server','--host-resolver-rules=MAP site.mblock.test 127.0.0.1, MAP ads.doubleclick.net 127.0.0.1',...(extension?['--disable-extensions-except='+extension,'--load-extension='+extension]:[])]});
+  const launch=()=>chromium.launchPersistentContext(profile,{channel:process.env.MBLOCK_BROWSER_PATH?undefined:'chromium',executablePath:process.env.MBLOCK_BROWSER_PATH||undefined,headless:true,ignoreDefaultArgs:['--disable-extensions'],args:['--no-sandbox','--no-proxy-server','--host-resolver-rules=MAP site.mblock.test 127.0.0.1, MAP ads.doubleclick.net 127.0.0.1',...(extension?['--disable-extensions-except='+extension,'--load-extension='+extension]:[])]});
+  context=await launch();
+  if(label.startsWith('mblock')){
+   const worker=context.serviceWorkers()[0]||await context.waitForEvent('serviceworker');
+   const ui=await context.newPage();await ui.goto('chrome-extension://'+new URL(worker.url()).host+'/ui/dashboard.html');
+   configuration=await ui.evaluate(async()=>{
+    const state=await chrome.runtime.sendMessage({type:'state'});if(!state.ok)throw Error(state.error);
+    const updated=await chrome.runtime.sendMessage({type:'settings',patch:{autoUpdate:false}});if(!updated.ok)throw Error(updated.error);
+    return {stats:state.data.metadata.stats,sourceHashes:state.data.metadata.sources.map(s=>({id:s.id,sha256:s.sha256}))};
+   });
+   await context.close();
+   context=await launch();
+  }
+  const setupStarted=performance.now();
   const page=await context.newPage(), root=await context.browser().newBrowserCDPSession(), cdp=await context.newCDPSession(page);
   await cdp.send('Performance.enable');
-  if(label.startsWith('mblock')){
-   mblockWorker=context.serviceWorkers()[0]||await context.waitForEvent('serviceworker');
-   // Do not open the dashboard before RSS sampling: a closed extension page can
-   // leave a renderer process resident and unfairly charge that UI to mBlock.
-  }
   // Never benchmark an extension which failed to load (notably MV2 in new Chrome).
   // Modern Playwright intentionally returns [] from backgroundPages(), even
   // when attached to historical Chromium. Inspect actual CDP targets instead.
@@ -68,27 +75,6 @@ async function measure(label, extensionPath){
    if (essential && adHits === (extension ? 0 : ads)) { ready = true; break; }
   }
   if (!ready) throw new Error(label + ': blocking readiness check failed; refuse misleading timings.');
-  if(mblockWorker){
-   configuration=await mblockWorker.evaluate(async()=>{
-    let exists=false;
-    for(let attempt=0;attempt<120&&!exists;attempt++){
-      const databases=typeof indexedDB.databases==='function'?await indexedDB.databases():[];
-      exists=databases.some(x=>x.name==='mblock-v1');
-      if(!exists)await new Promise(resolve=>setTimeout(resolve,100));
-    }
-    if(!exists)throw Error('mBlock database unavailable after blocking became ready');
-    const db=await new Promise((resolve,reject)=>{const r=indexedDB.open('mblock-v1');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});
-    if(!db.objectStoreNames.contains('meta')){db.close();throw Error('mBlock metadata store unavailable after initialization');}
-    let metadata=null;
-    for(let attempt=0;attempt<120&&!metadata;attempt++){
-      metadata=await new Promise((resolve,reject)=>{const r=db.transaction('meta').objectStore('meta').get('active');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});
-      if(!metadata)await new Promise(resolve=>setTimeout(resolve,100));
-    }
-    db.close();
-    if(!metadata)throw Error('mBlock metadata unavailable after initialization');
-    return {stats:metadata.stats,sourceHashes:(metadata.sources||[]).map(s=>({id:s.id,sha256:s.sha256}))};
-   });
-  }
   const targets = (await root.send('Target.getTargets')).targetInfos;
   const extensionTargets=targets.filter(t=>t.url.startsWith('chrome-extension://'));
   const loadedTargets = extensionTargets.map(t => ({type:t.type,url:t.url}));
@@ -151,7 +137,7 @@ try{
  if(previous && JSON.stringify(previous.configuration)!==JSON.stringify(current.configuration)) throw new Error('Before/after filter configuration differs; refuse comparison.');
  const baseline = scenarios.find(s => s.label === 'external-baseline');
  const originCompared = baseline?.extension?.name === 'uBlock Origin' && baseline.extension.manifestVersion === 2;
- const report={at:new Date().toISOString(),order:scenarios.map(s=>s.label),machine:{platform:platform(),cpu:cpus()[0]?.model,logicalCPUs:cpus().length},fixture:{runs,frames,maintenanceRuns,adsPerPage:ads,cache:'no-store; one warm-up',heapMeasurement:'extension target heap is recorded before and after explicit V8 garbage collection',note:'Synthetic local fixture; no live-site claim. Fresh default profiles; no dashboard is opened before RSS samples; dead extension bootstrap objects are garbage-collected before steady-state sampling for every extension. uBO default bundled lists; subscriptions are not identical. Sequential scenarios can have order and background update bias.'},comparisonToUBlockOriginComplete:originCompared,scope:'Single synthetic fixture only; not a general superiority test',baselineProvided:!!process.env.MBLOCK_BASELINE,scenarios};
+ const report={at:new Date().toISOString(),order:scenarios.map(s=>s.label),machine:{platform:platform(),cpu:cpus()[0]?.model,logicalCPUs:cpus().length},fixture:{runs,frames,maintenanceRuns,adsPerPage:ads,cache:'no-store; one warm-up',heapMeasurement:'extension target heap is recorded before and after explicit V8 garbage collection',note:'Synthetic local fixture; no live-site claim. Fresh default profiles; mBlock auto-update is disabled in a separate preflight browser which is fully closed before measurement; no dashboard exists in the measured browser; dead extension bootstrap objects are garbage-collected before steady-state sampling for every extension. uBO default bundled lists; subscriptions are not identical. Sequential scenarios can have order and background update bias.'},comparisonToUBlockOriginComplete:originCompared,scope:'Single synthetic fixture only; not a general superiority test',baselineProvided:!!process.env.MBLOCK_BASELINE,scenarios};
  await mkdir('test-results',{recursive:true});await writeFile(process.env.MBLOCK_BENCH_OUTPUT || 'test-results/benchmark.json',JSON.stringify(report,null,2));
  console.log(JSON.stringify(scenarios.map(x=>({label:x.label,initializationAndWarmupMs:x.initializationAndWarmupMs,extension:x.extension,median:x.median,extensionMemory:x.extensionMemory,maintenance:x.maintenance,processes:x.processes,heaps:x.heaps})),null,2));
 }finally{await new Promise(r=>server.close(r));}
