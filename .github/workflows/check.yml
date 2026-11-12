@@ -25,6 +25,14 @@ jobs:
       - run: npm run test:browser
       - run: npm run benchmark
       - run: npm run package
+      - name: Build unsigned Firefox package for AMO signing
+        run: |
+          cd dist/firefox
+          zip -qr ../../mblock-firefox-0.3.0-para-assinar.zip .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mblock-firefox-0.3.0-para-assinar
+          path: mblock-firefox-0.3.0-para-assinar.zip
       - uses: actions/upload-artifact@v4
         if: always()
         with:
