@@ -30,7 +30,8 @@ async function measure(label, extensionPath){
    await ui.evaluate(async()=>{const r=await chrome.runtime.sendMessage({type:'state'});if(!r.ok)throw Error(r.error);await chrome.runtime.sendMessage({type:'settings',patch:{autoUpdate:false}})});await ui.close();
   }
   // Never benchmark an extension which failed to load (notably MV2 in new Chrome).
-  if (extension && manifest.manifest_version === 2 && !context.backgroundPages().length) await context.waitForEvent('backgroundpage', {timeout:15000});
+  // Modern Playwright intentionally returns [] from backgroundPages(), even
+  // when attached to historical Chromium. Inspect actual CDP targets instead.
   let ready = false;
   for (let attempt = 0; attempt < 20; attempt++) {
    adHits = 0; await page.goto(origin + '/?warmup=' + attempt, {waitUntil:'networkidle'});
@@ -38,6 +39,9 @@ async function measure(label, extensionPath){
    if (essential && adHits === (extension ? 0 : ads)) { ready = true; break; }
   }
   if (!ready) throw new Error(label + ': blocking readiness check failed; refuse misleading timings.');
+  const targets = (await root.send('Target.getTargets')).targetInfos;
+  const loadedTargets = targets.filter(t => t.url.startsWith('chrome-extension://')).map(t => ({type:t.type,url:t.url}));
+  if (extension && !loadedTargets.length) throw new Error(label + ': no extension target loaded');
   const samples=[];
   for(let i=0;i<runs;i++){
    adHits=0;
@@ -51,7 +55,7 @@ async function measure(label, extensionPath){
    samples.push({navigationAndIdleMs:Math.round(elapsed*100)/100,cpuMs:Math.round(cpuMs*100)/100,rssKiB:rss(after),adRequestsReachedServer:adHits,...stats});
   }
   const median=key=>{const values=samples.map(x=>x[key]).filter(x=>typeof x==='number').sort((a,b)=>a-b);return values.length?values[Math.floor(values.length/2)]:null;};
-  return {label,extension:manifest?{name:manifest.name,version:manifest.version,manifestVersion:manifest.manifest_version}:null,browser:context.browser().version(),samples,median:Object.fromEntries(['navigationAndIdleMs','cpuMs','rssKiB','loadMs','adRequestsReachedServer'].map(k=>[k,median(k)]))};
+  return {label,loadedTargets,extension:manifest?{name:manifest.name,version:manifest.version,manifestVersion:manifest.manifest_version}:null,browser:context.browser().version(),samples,median:Object.fromEntries(['navigationAndIdleMs','cpuMs','rssKiB','loadMs','adRequestsReachedServer'].map(k=>[k,median(k)]))};
  }finally{if(context)await context.close();await rm(profile,{recursive:true,force:true});}
 }
 try{
