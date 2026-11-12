@@ -39,10 +39,14 @@ test('AntiAdblockCore known fix is global and does not depend on a domain allowl
  }
 });
 
-test('AntiAdblockCore repair is enabled only after the document verifies redirect or overlay suppression',()=>{
- const base={url:'https://www.filecatchers.com/',markers:['antiadblock-core loader','antiadblock-core meta'],scripts:[],antiAdblockCore:{loaderUrl:'https://qbp5y.filecatchers.com/a/b/core.js',loaderHost:'qbp5y.filecatchers.com',fixState:'marker-active',overlayRemovals:0}};
- const configured=analyzeEvidence(base,{fixes:true,sites:{},antiAdblockCoreRules:[{siteHost:'www.filecatchers.com',loaderHost:'qbp5y.filecatchers.com'}]});
- assert.equal(configured.proposals[0].configured,true);assert.equal(configured.proposals[0].learned,true);assert.equal(configured.proposals[0].enabled,false);assert.equal(configured.canApplyKnownFix,true);
+test('AntiAdblockCore repair verifies redirect, overlay suppression or learned recovery without a warning',()=>{
+ const base={url:'https://www.filecatchers.com/',markers:['antiadblock-core loader','antiadblock-core meta'],scripts:[],warningPresent:false,antiAdblockCore:{loaderUrl:'https://qbp5y.filecatchers.com/a/b/core.js',loaderHost:'qbp5y.filecatchers.com',fixState:'marker-active',overlayRemovals:0}};
+ const unlearned=analyzeEvidence(base,{fixes:true,sites:{},antiAdblockCoreRules:[]});
+ assert.equal(unlearned.proposals[0].enabled,false);assert.equal(unlearned.canApplyKnownFix,true);
+ const recovered=analyzeEvidence(base,{fixes:true,sites:{},antiAdblockCoreRules:[{siteHost:'www.filecatchers.com',loaderHost:'qbp5y.filecatchers.com'}]});
+ assert.equal(recovered.proposals[0].configured,true);assert.equal(recovered.proposals[0].learned,true);assert.equal(recovered.proposals[0].enabled,true);assert.equal(recovered.proposals[0].fixState,'recovery-active');assert.equal(recovered.proposals[0].verification,'document-start-recovery');assert.equal(recovered.canApplyKnownFix,false);
+ const warned=analyzeEvidence({...base,warningPresent:true},{fixes:true,sites:{},antiAdblockCoreRules:[{siteHost:'www.filecatchers.com',loaderHost:'qbp5y.filecatchers.com'}]});
+ assert.equal(warned.proposals[0].enabled,false);assert.equal(warned.proposals[0].verification,'pending');
  const redirected=analyzeEvidence({...base,antiAdblockCore:{...base.antiAdblockCore,fixState:'redirected'}},{fixes:true,sites:{},antiAdblockCoreRules:[{siteHost:'www.filecatchers.com',loaderHost:'qbp5y.filecatchers.com'}]});
- assert.equal(redirected.proposals[0].enabled,true);assert.equal(redirected.canApplyKnownFix,false);assert.match(redirected.nextStep,/verified/);
+ assert.equal(redirected.proposals[0].enabled,true);assert.equal(redirected.proposals[0].verification,'native-redirect');assert.match(redirected.nextStep,/verified/);
 });
