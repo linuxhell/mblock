@@ -99,7 +99,18 @@ try {
  assert.equal(forged.ok,false);
  const afterPicker=(await call('state')).settings.customRules;
  await call('settings',{patch:{customRules:afterPicker.replace('127.0.0.1##h1\n','')}});await site.reload();await site.waitForFunction(()=>getComputedStyle(document.querySelector('h1')).display!=='none');
- passed.push('element picker previews, cancels, persists on reload and rejects forged saves');
+ await site.evaluate(()=>{
+  window.__dynamicReplacements=0;
+  const modal=document.createElement('div');modal.id='cwvfivhk';modal.dataset.dynamicModal='1';modal.style.cssText='position:fixed;z-index:5000;left:20px;top:20px;width:320px;height:180px;background:white';
+  const button=document.createElement('button');button.textContent='Dynamic modal target';modal.append(button);document.body.append(modal);
+  window.__dynamicModalTimer=setInterval(()=>{const current=document.querySelector('[data-dynamic-modal]');if(window.__dynamicReplacements===0&&current&&getComputedStyle(current).display==='none'){const next=current.cloneNode(true);next.id='cj2v4gkk';current.replaceWith(next);window.__dynamicReplacements=1;}},20);
+ });
+ await call('picker_start',{tabId,labels});await site.locator('[data-dynamic-modal] button').click();await pickerButton('Preview');
+ await site.waitForFunction(()=>window.__dynamicReplacements===1);
+ assert.equal(await site.locator('[data-dynamic-modal]').evaluate(e=>getComputedStyle(e).display),'none');
+ await pickerButton('Cancel');await site.waitForFunction(()=>getComputedStyle(document.querySelector('[data-dynamic-modal]')).display!=='none');
+ await site.evaluate(()=>{clearInterval(window.__dynamicModalTimer);delete window.__dynamicModalTimer;document.querySelector('[data-dynamic-modal]')?.remove();});
+ passed.push('element picker previews, cancels, persists, survives dynamic modal replacement and rejects forged saves');
  await dashboard.locator('#refresh-tabs').click();await dashboard.locator('#tab').selectOption(String(tabId));await dashboard.locator('#analyze').click();await dashboard.waitForFunction(()=>document.querySelector('#assistant-result').textContent.includes('mblock-site-analysis-v2'));
  assert.equal(await dashboard.locator('#apply-known-fix').isDisabled(),true);assert.equal(await dashboard.locator('#apply-known-fix').evaluate(e=>getComputedStyle(e).cursor),'default');assert.equal(await dashboard.locator('#apply-known-fix').getAttribute('aria-busy'),null);assert.match(await dashboard.locator('#known-fix-status').textContent(),/No known fix/);passed.push('unavailable known fix explains why and uses a normal cursor after analysis');
  await worker.evaluate(()=>{globalThis.__executeOriginal=chrome.scripting.executeScript;chrome.scripting.executeScript=options=>options.func?.name==='probeSite'?new Promise(()=>{}):globalThis.__executeOriginal(options);});

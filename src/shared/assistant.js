@@ -17,9 +17,9 @@ export function analyzeEvidence(evidence, settings, runtime = {}) {
     const policy = sitePolicy({ enabled: true, genericCosmetic: false, ...settings }, host);
     const trace = evidence.antiAdblockCore || {};
     const configured = settings.fixes !== false && policy.fixes !== false;
-    const learned = Array.isArray(settings.antiAdblockCoreRules) && settings.antiAdblockCoreRules.some(x => x?.siteHost === host && x?.loaderUrl === trace.loaderUrl);
+    const learned = Array.isArray(settings.antiAdblockCoreRules) && settings.antiAdblockCoreRules.some(x => { let loaderHost=x?.loaderHost||''; if (!loaderHost && x?.loaderUrl) try { loaderHost=new URL(x.loaderUrl).hostname; } catch {} return x?.siteHost === host && loaderHost === trace.loaderHost; });
     const verified = trace.fixState === 'redirected' || trace.fixState === 'overlay-removed';
-    proposals.push({ id: 'antiadblock-core-v3', mechanism: 'learned native loader redirect with document-start recovery fallback', kind: 'packaged_repair', confidence: 'high', enabled: verified, configured, learned, fixState: trace.fixState || 'not-run', loaderObserved: !!trace.loaderUrl, available: !policy.paused, validation: 'AntiAdblockCore markers observed; enabled only after redirect or overlay suppression is verified in the document', automaticallyGenerated: false });
+    proposals.push({ id: 'antiadblock-core-v4', mechanism: 'learned rotating loader-host redirect with document-start recovery fallback', kind: 'packaged_repair', confidence: 'high', enabled: verified, configured, learned, fixState: trace.fixState || 'not-run', loaderObserved: !!trace.loaderUrl, available: !policy.paused, validation: 'AntiAdblockCore markers observed; learned rule follows the dedicated loader host across rotating paths; enabled only after redirect or overlay suppression is verified', automaticallyGenerated: false });
   }
   let youtube;
   if (isYouTube(host)) {

@@ -322,10 +322,14 @@ async function handle(message, sender) {
     if (sitePolicy(settings, host).paused || !sitePolicy(settings, host).cosmetic) throw new Error('Ative a proteção e a ocultação por CSS neste site.');
     const css = ':is(' + selector + '){display:none!important}';
     const target = { tabId: sender.tab.id, frameIds: [0] };
+    if (pending.selector && pending.selector !== selector) throw new Error('O elemento selecionado mudou. Selecione novamente.');
     const matched = (await api.scripting.executeScript({ target, func:s => { try { return document.querySelectorAll(s).length; } catch { return -1; } }, args:[selector] }))[0]?.result ?? -1;
+    if (message.enabled === true && matched <= 0 && !pending.selector) throw new Error('O elemento mudou antes da prévia. Selecione novamente.');
+    if (message.enabled === true && !pending.selector && matched > 0) await db.put('meta', 'picker:' + sender.tab.id, { ...pending, selector });
     if (message.enabled === true) await api.scripting.insertCSS({ target, css, origin:'USER' });
     else await api.scripting.removeCSS({ target, css, origin:'USER' });
-    event('picker_preview', { host, selector: selector.slice(0, 300), enabled: message.enabled === true, matched });
+    if (pending.selector && matched === 0) event('picker_target_replaced', { host, selector: selector.slice(0, 300) });
+    event('picker_preview', { host, selector: selector.slice(0, 300), enabled: message.enabled === true, matched, authorized: !!pending.selector || matched > 0 });
     return { matched };
   }
   if (message.type === 'picker_save') return serial(async () => {
@@ -336,13 +340,15 @@ async function handle(message, sender) {
     if (typeof selector !== 'string' || !safeSelector(selector) || /[\r\n]/.test(selector)) throw new Error('Seletor inválido.');
     if (sitePolicy(settings, host).paused || !sitePolicy(settings, host).cosmetic) throw new Error('Ative a proteção e a ocultação por CSS neste site.');
     // CSS syntax must also be accepted by the document before any durable write.
-    const validation = await api.scripting.executeScript({ target:{tabId:sender.tab.id,frameIds:[0]}, func:s => { try { return document.querySelectorAll(s).length > 0; } catch { return false; } }, args:[selector] });
-    if (!validation[0]?.result) throw new Error('Seletor inválido.');
+    if (pending.selector && pending.selector !== selector) throw new Error('O elemento selecionado mudou. Selecione novamente.');
+    const validation = await api.scripting.executeScript({ target:{tabId:sender.tab.id,frameIds:[0]}, func:s => { try { return document.querySelectorAll(s).length; } catch { return -1; } }, args:[selector] });
+    const matched = validation[0]?.result ?? -1;
+    if (matched <= 0 && pending.selector !== selector) throw new Error('Seletor inválido.');
     const rule = host + '##' + selector;
     if (!settings.customRules.split('\n').some(line => line.trim() === rule)) await changeSettings({ customRules:normalizeRules(settings.customRules.trimEnd() + '\n' + rule + '\n') });
     await api.scripting.insertCSS({target:{tabId:sender.tab.id,frameIds:[0]},css:':is(' + selector + '){display:none!important}',origin:'USER'});
     await db.remove('meta', 'picker:' + sender.tab.id);
-    event('element_filter_created', { host, selector: selector.slice(0, 300), matched: validation[0]?.result ? 1 : 0 }); return {};
+    event('element_filter_created', { host, selector: selector.slice(0, 300), matched, survivedReplacement: matched === 0 && pending.selector === selector }); return {};
   });
   requireUI(sender);
   switch (message.type) {
@@ -417,23 +423,24 @@ async function handle(message, sender) {
       if (!host) throw new Error('Não há correção conhecida para este site.');
       const evidence = await siteEvidence(tab.id);
       const analysis = analyzeEvidence(evidence, settings);
-      const proposal = analysis.proposals.find(x => x.id === 'antiadblock-core-v3');
+      const proposal = analysis.proposals.find(x => x.id === 'antiadblock-core-v4');
       if (!proposal) throw new Error('A assinatura conhecida não foi encontrada.');
       const loaderUrl = evidence.antiAdblockCore?.loaderUrl || '';
+      const loaderHost = evidence.antiAdblockCore?.loaderHost || '';
       const learned = [...(Array.isArray(settings.antiAdblockCoreRules) ? settings.antiAdblockCoreRules : [])]
-        .filter(x => x?.siteHost !== host || x?.loaderUrl !== loaderUrl);
-      if (loaderUrl) learned.push({ siteHost: host, loaderUrl });
+        .filter(x => x?.siteHost !== host);
+      if (loaderHost && loaderHost !== host) learned.push({ siteHost: host, loaderHost });
       const nextRules = learned.slice(-40);
       event('antiadblock_fix_started', { host, loaderHost: evidence.antiAdblockCore?.loaderHost || '', priorState: evidence.antiAdblockCore?.fixState || 'not-run' });
       await serial(() => changeSettings({ fixes: true, antiAdblockCoreRules: nextRules, sites: { ...settings.sites, [host]: { ...settings.sites[host], fixes: true } } }));
-      if (loaderUrl) event('antiadblock_fix_rule_installed', { host, loaderUrl: redactURL(loaderUrl, true), learnedRules: nextRules.length });
+      if (loaderHost && loaderHost !== host) event('antiadblock_fix_rule_installed', { host, loaderHost, observedLoaderUrl: loaderUrl ? redactURL(loaderUrl, true) : '', learnedRules: nextRules.length });
       await bounded(api.scripting.executeScript({ target: { tabId: tab.id, frameIds: [0] }, world: 'MAIN', files: ['resources/antiadblock-core-marker.js'] }));
       await reloadAndWait(tab.id);
       const verifiedEvidence = await siteEvidence(tab.id);
       const state = verifiedEvidence.antiAdblockCore?.fixState || 'not-run';
       const verified = state === 'redirected' || state === 'overlay-removed';
       event(verified ? 'antiadblock_fix_verified' : 'antiadblock_fix_unverified', { host, state, loaderHost: verifiedEvidence.antiAdblockCore?.loaderHost || '', overlayRemovals: verifiedEvidence.antiAdblockCore?.overlayRemovals || 0 }, verified ? 'info' : 'warn');
-      return { fix: 'antiadblock-core-v3', configured: true, learned: !!loaderUrl, reloaded: true, verified, state, trace: verifiedEvidence.antiAdblockCore || null };
+      return { fix: 'antiadblock-core-v4', configured: true, learned: !!loaderHost && loaderHost !== host, loaderHost, reloaded: true, verified, state, trace: verifiedEvidence.antiAdblockCore || null };
     }
     case 'clear_logs': journal.clear(); await area.set({ journal: journal.toJSON() }); return {};
     case 'export': return exportReport();
