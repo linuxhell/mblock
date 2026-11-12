@@ -1,0 +1,36 @@
+name: Firefox signing package
+on:
+  push:
+    branches: ['build/firefox-signing-0.3.0']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run fetch:lists
+      - run: npm run build
+      - run: node scripts/lint-firefox.mjs
+      - name: Verify Firefox identity
+        run: |
+          node -e "const m=require('./dist/firefox/manifest.json');if(m.version!=='0.3.0'||m.browser_specific_settings.gecko.id!=='mblock@linuxhell.github.io')process.exit(1)"
+      - name: Package Firefox for AMO signing
+        run: |
+          cd dist/firefox
+          zip -qr ../../mblock-firefox-0.3.0-para-assinar.zip .
+          cd ../..
+          sha256sum mblock-firefox-0.3.0-para-assinar.zip > mblock-firefox-0.3.0-para-assinar.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mblock-firefox-0.3.0-para-assinar
+          path: |
+            mblock-firefox-0.3.0-para-assinar.zip
+            mblock-firefox-0.3.0-para-assinar.sha256
