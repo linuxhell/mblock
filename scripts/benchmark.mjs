@@ -46,7 +46,7 @@ async function targetHeap(root,targetId) {
 }
 async function measure(label, extensionPath){
  const setupStarted=performance.now();
- const profile=await mkdtemp(tmpdir()+'/mblock-bench-');let context,configuration;
+ const profile=await mkdtemp(tmpdir()+'/mblock-bench-');let context,configuration,mblockWorker=null;
  try{
   const extension=extensionPath?resolve(extensionPath):null;
   const manifest=extension?JSON.parse(await readFile(extension+'/manifest.json','utf8')):null;
@@ -54,20 +54,9 @@ async function measure(label, extensionPath){
   const page=await context.newPage(), root=await context.browser().newBrowserCDPSession(), cdp=await context.newCDPSession(page);
   await cdp.send('Performance.enable');
   if(label.startsWith('mblock')){
-   const worker=context.serviceWorkers()[0]||await context.waitForEvent('serviceworker');
+   mblockWorker=context.serviceWorkers()[0]||await context.waitForEvent('serviceworker');
    // Do not open the dashboard before RSS sampling: a closed extension page can
    // leave a renderer process resident and unfairly charge that UI to mBlock.
-   configuration=await worker.evaluate(async()=>{
-    const db=await new Promise((resolve,reject)=>{const r=indexedDB.open('mblock-v1',1);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});
-    let metadata=null;
-    for(let attempt=0;attempt<120&&!metadata;attempt++){
-      metadata=await new Promise((resolve,reject)=>{const r=db.transaction('meta').objectStore('meta').get('active');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});
-      if(!metadata)await new Promise(resolve=>setTimeout(resolve,100));
-    }
-    db.close();
-    if(!metadata)throw Error('mBlock metadata unavailable after initialization');
-    return {stats:metadata.stats,sourceHashes:(metadata.sources||[]).map(s=>({id:s.id,sha256:s.sha256}))};
-   });
   }
   // Never benchmark an extension which failed to load (notably MV2 in new Chrome).
   // Modern Playwright intentionally returns [] from backgroundPages(), even
@@ -79,6 +68,27 @@ async function measure(label, extensionPath){
    if (essential && adHits === (extension ? 0 : ads)) { ready = true; break; }
   }
   if (!ready) throw new Error(label + ': blocking readiness check failed; refuse misleading timings.');
+  if(mblockWorker){
+   configuration=await mblockWorker.evaluate(async()=>{
+    let exists=false;
+    for(let attempt=0;attempt<120&&!exists;attempt++){
+      const databases=typeof indexedDB.databases==='function'?await indexedDB.databases():[];
+      exists=databases.some(x=>x.name==='mblock-v1');
+      if(!exists)await new Promise(resolve=>setTimeout(resolve,100));
+    }
+    if(!exists)throw Error('mBlock database unavailable after blocking became ready');
+    const db=await new Promise((resolve,reject)=>{const r=indexedDB.open('mblock-v1');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});
+    if(!db.objectStoreNames.contains('meta')){db.close();throw Error('mBlock metadata store unavailable after initialization');}
+    let metadata=null;
+    for(let attempt=0;attempt<120&&!metadata;attempt++){
+      metadata=await new Promise((resolve,reject)=>{const r=db.transaction('meta').objectStore('meta').get('active');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});
+      if(!metadata)await new Promise(resolve=>setTimeout(resolve,100));
+    }
+    db.close();
+    if(!metadata)throw Error('mBlock metadata unavailable after initialization');
+    return {stats:metadata.stats,sourceHashes:(metadata.sources||[]).map(s=>({id:s.id,sha256:s.sha256}))};
+   });
+  }
   const targets = (await root.send('Target.getTargets')).targetInfos;
   const extensionTargets=targets.filter(t=>t.url.startsWith('chrome-extension://'));
   const loadedTargets = extensionTargets.map(t => ({type:t.type,url:t.url}));
