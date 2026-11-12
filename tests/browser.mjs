@@ -183,6 +183,16 @@ try {
  assert.equal(await fc.evaluate(()=>!!window.originalAntiCoreRan),false);assert.equal(await fc.evaluate(()=>!!window.fallbackRan),false);passed.push('observed FC Portables loader redirected; fallback loop not started (fixture)');
  const fcTabId=await worker.evaluate(async url=>(await chrome.tabs.query({})).find(t=>t.url===url).id,fc.url());
  const analysis=await call('assistant_analyze',{tabId:fcTabId});assert.equal(analysis.generativeAI,false);assert.equal(analysis.engines[0].confidence,'high');assert.equal(analysis.proposals.length,1);passed.push('local evidence classifier identifies known loader without claiming generative AI');
+ const filecatchers=await context.newPage();
+ await context.route('https://www.filecatchers.com/__mblock_fixture',route=>route.fulfill({contentType:'text/html',body:`<!doctype html><title>FileCatchers rotating loader fixture</title><meta name="antiadblockcore-verification" content="fixture"><script id="antiadblock-core-js" src="https://qbp5y.filecatchers.com/e27011346afc2e5b.min.js"></script><h1>Essential content</h1>`}));
+ await context.route('https://qbp5y.filecatchers.com/**',route=>route.fulfill({contentType:'text/javascript',headers:{'Access-Control-Allow-Origin':'*'},body:'window.originalFileCatchersCoreRan=true;'}));
+ await filecatchers.goto('https://www.filecatchers.com/__mblock_fixture');await filecatchers.waitForLoadState('load');
+ const filecatchersTabId=await worker.evaluate(async url=>(await chrome.tabs.query({})).find(t=>t.url===url).id,filecatchers.url());
+ const beforeLearn=await call('assistant_analyze',{tabId:filecatchersTabId});assert.equal(beforeLearn.proposals[0].learned,false);
+ const repair=await call('assistant_enable_known_fix',{tabId:filecatchersTabId});assert.equal(repair.learned,true);assert.equal(repair.verified,true);assert.equal(repair.state,'redirected');assert.equal(repair.verification,'native-redirect');
+ const afterLearn=await call('assistant_analyze',{tabId:filecatchersTabId});assert.equal(afterLearn.proposals[0].learned,true);assert.equal(afterLearn.proposals[0].enabled,true);assert.equal(afterLearn.proposals[0].fixState,'redirected');assert.equal(afterLearn.proposals[0].verification,'native-redirect');
+ assert.equal(await filecatchers.evaluate(()=>!!window.originalFileCatchersCoreRan),false);passed.push('learned rotating AntiAdblockCore host uses native redirect on non-FC sites');
+ await filecatchers.close();
  // Import/export round trip, including the actual UI file chooser and download.
  const backup=await call('rules_export',{format:'json'});const beforeImport=(await call('state')).settings.customRules;
  const downloadEvent=dashboard.waitForEvent('download');await dashboard.locator('#export-rules-txt').click();const download=await downloadEvent;await download.saveAs('test-results/exported-rules.txt');assert.ok((await readFile('test-results/exported-rules.txt','utf8')).includes('mblock-resource.js'));
