@@ -18,6 +18,7 @@ import { updateAlarm, validUpdateInterval, unchangedLists } from './shared/updat
 import { installElementPicker } from './shared/element-picker.js';
 const api = globalThis.browser || chrome;
 const dnr = api.declarativeNetRequest;
+const bootstrapIds = api.runtime.getManifest().declarative_net_request.rule_resources.filter(r => r.id.startsWith('bootstrap')).map(r => r.id);
 let settings, metadata, target, activeDiagnostic = null, journal, mutation = Promise.resolve(), updating = false;
 let initPromise, flushTimer, diagnosticAttached = false, diagCount = 0, rulesChanging = false;
 const cssByDocument = new Map();
@@ -88,7 +89,7 @@ async function installSnapshot(next, previous, saveSettings = true) {
   if (saveSettings) { await api.storage.local.set({ settings: next.settings }); settings = next.settings; }
   await db.put('meta', 'pending', null);
   metadata = await db.get('meta', 'active');
-  await dnr.updateEnabledRulesets({ disableRulesetIds: ['bootstrap'] });
+  await dnr.updateEnabledRulesets({ disableRulesetIds: bootstrapIds });
   cssByDocument.clear();
 }
 async function initialize() {
@@ -119,7 +120,7 @@ async function initialize() {
       if (metadata.engineVersion !== VERSION) { const old = await db.get('snapshots', 'active'); await activate(rebuildSnapshot({ ...old, settings }), old); event('engine_upgraded', { version: VERSION }); }
       else await syncSiteScripts(api, settings);
       // Browser rules survive restarts; no recompilation and no full rules read on normal wake.
-      await dnr.updateEnabledRulesets({ disableRulesetIds: ['bootstrap'] });
+      await dnr.updateEnabledRulesets({ disableRulesetIds: bootstrapIds });
     }
     if (dnr.setExtensionActionOptions) await dnr.setExtensionActionOptions({ displayActionCountAsBadgeText: true }).catch(() => {});
     await scheduleUpdate();
