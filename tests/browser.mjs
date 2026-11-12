@@ -14,8 +14,9 @@ await new Promise((r,j)=>{server.once('error',j);server.listen(0,'127.0.0.1',r);
 const origin = 'http://127.0.0.1:' + server.address().port;
 const extension = resolve('dist/chrome');
 let context;
+const launchOptions = { channel: process.env.MBLOCK_BROWSER_PATH ? undefined : 'chromium', executablePath: process.env.MBLOCK_BROWSER_PATH || undefined, headless: true, ignoreDefaultArgs: ['--disable-extensions'], args: ['--no-sandbox','--disable-extensions-except=' + extension,'--load-extension=' + extension] };
 try {
- context = await chromium.launchPersistentContext(profile, { channel: process.env.MBLOCK_BROWSER_PATH ? undefined : 'chromium', executablePath: process.env.MBLOCK_BROWSER_PATH || undefined, headless: true, ignoreDefaultArgs: ['--disable-extensions'], args: ['--no-sandbox','--disable-extensions-except=' + extension,'--load-extension=' + extension] });
+ context = await chromium.launchPersistentContext(profile, launchOptions);
  context.on('serviceworker', w => w.on('console', m => { if (m.type()==='error') errors.push(m.text()); }));
  let worker = context.serviceWorkers()[0] || await context.waitForEvent('serviceworker', {timeout:60000});
  const id = new URL(worker.url()).host;
@@ -32,9 +33,9 @@ try {
    const database=await new Promise((resolve,reject)=>{const r=indexedDB.open('mblock-v1',1);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});
    await new Promise((resolve,reject)=>{const tx=database.transaction(['meta','snapshots'],'readwrite');for(const name of ['meta','snapshots']){const store=tx.objectStore(name),r=store.get('active');r.onsuccess=()=>{const value=r.result;delete value.engineVersion;delete value.settings.youtube;store.put(value,'active')}}tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)});database.close();
  });
- const nextWorker=context.waitForEvent('serviceworker',{timeout:60000}),oldDashboard=dashboard;
- await worker.evaluate(()=>chrome.runtime.reload()).catch(()=>{});worker=await nextWorker;
- dashboard=await context.newPage();await dashboard.goto('chrome-extension://'+id+'/ui/dashboard.html');if(!oldDashboard.isClosed())await oldDashboard.close();
+ await context.close();context=await chromium.launchPersistentContext(profile,launchOptions);
+ context.on('serviceworker',w=>w.on('console',m=>{if(m.type()==='error')errors.push(m.text());}));
+ dashboard=await context.newPage();await dashboard.goto('chrome-extension://'+id+'/ui/dashboard.html');worker=context.serviceWorkers()[0]||await context.waitForEvent('serviceworker',{timeout:60000});
  const migrated=await call('state');assert.equal(migrated.metadata.engineVersion,'0.2.0');assert.equal(migrated.settings.customRules,'||migration-preserved.example^\n');assert.equal(migrated.settings.sites['migration.example'].paused,true);assert.equal(migrated.settings.youtube,true);assert.ok((await call('logs')).entries.some(e=>e.type==='engine_upgraded'));passed.push('legacy 0.1 snapshot upgrades without losing personal filters or site policies');
  for(const [language,tag,label] of [['pt_BR','pt-BR','Doar via PayPal'],['zh_CN','zh-CN','通过 PayPal 捐赠'],['en','en-US','Donate with PayPal']]){
    await dashboard.locator('[data-language]').selectOption(language);
@@ -111,4 +112,5 @@ try {
  await dashboard.reload();await dashboard.locator('#native').waitFor();await dashboard.screenshot({path:'test-results/dashboard.png',fullPage:true});
  await writeFile('test-results/browser.json',JSON.stringify({browser:context.browser()?.version(),passed,errors,note:'FC Portables verified with the observed loader URL in an isolated fixture. Live site not certified.'},null,2));
  console.log(JSON.stringify({passed:passed.length,checks:passed,errors},null,2));
-} finally {if(context)await context.close();await new Promise(r=>server.close(r));await rm(profile,{recursive:true,force:true});}
+} catch(error) { console.error(JSON.stringify({checksPassed:passed,errors},null,2));throw error; }
+finally {if(context)await context.close();await new Promise(r=>server.close(r));await rm(profile,{recursive:true,force:true});}

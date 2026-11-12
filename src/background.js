@@ -176,7 +176,8 @@ async function startDiagnostic(tabId, details, durationSeconds = LIMITS.diagSeco
   const tab = await api.tabs.get(tabId); if (!hostFromURL(tab.url)) throw new Error('Abra um site HTTP/HTTPS.');
   if (activeDiagnostic && activeDiagnostic.tabId !== tabId) { const priorTabId = activeDiagnostic.tabId; bounded(api.tabs.sendMessage(priorTabId, { type: 'diagnostic_state', enabled: false }, { frameId: 0 })).catch(() => {}); }
   detachDiagnostic(); diagCount = 0;
-  activeDiagnostic = { tabId, host: hostFromURL(tab.url), startedAt: Date.now(), until: Date.now() + durationSeconds * 1000, durationSeconds, details: !!details };
+  const startedAt = Date.now();
+  activeDiagnostic = { tabId, host: hostFromURL(tab.url), startedAt, until: startedAt + durationSeconds * 1000, durationSeconds, details: !!details };
   await area.set({ activeDiagnostic }); await api.alarms.create('diagnostic', { when: activeDiagnostic.until }); attachDiagnostic();
   event('diagnostic_started', { tabId, host: activeDiagnostic.host, durationSeconds, details: activeDiagnostic.details });
   await bounded(api.tabs.sendMessage(tabId, { type: 'diagnostic_state', enabled: true, until: activeDiagnostic.until }, { frameId: 0 })).catch(() => {});
