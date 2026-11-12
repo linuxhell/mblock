@@ -31,12 +31,12 @@ try {
  await call('site_policy',{host:'migration.example',policy:{paused:true}});
  await worker.evaluate(async()=>{
    const database=await new Promise((resolve,reject)=>{const r=indexedDB.open('mblock-v1',1);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});
-   await new Promise((resolve,reject)=>{const tx=database.transaction(['meta','snapshots'],'readwrite');for(const name of ['meta','snapshots']){const store=tx.objectStore(name),r=store.get('active');r.onsuccess=()=>{const value=r.result;delete value.engineVersion;delete value.settings.youtube;store.put(value,'active')}}tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)});database.close();
+   await new Promise((resolve,reject)=>{const tx=database.transaction(['meta','snapshots'],'readwrite');for(const name of ['meta','snapshots']){const store=tx.objectStore(name),r=store.get('active');r.onsuccess=()=>{const value=r.result;delete value.engineVersion;delete value.settings.youtube;store.put(value,'active');if(name==='snapshots')tx.objectStore('meta').put(value,'pending')}}tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)});database.close();
  });
  await context.close();context=await chromium.launchPersistentContext(profile,launchOptions);
  context.on('serviceworker',w=>w.on('console',m=>{if(m.type()==='error')errors.push(m.text());}));
  dashboard=await context.newPage();await dashboard.goto('chrome-extension://'+id+'/ui/dashboard.html');worker=context.serviceWorkers()[0]||await context.waitForEvent('serviceworker',{timeout:60000});
- const migrated=await call('state');assert.equal(migrated.metadata.engineVersion,'0.3.0');assert.equal(migrated.settings.customRules,'||migration-preserved.example^\n');assert.equal(migrated.settings.sites['migration.example'].paused,true);assert.equal(migrated.settings.youtube,true);assert.ok((await call('logs')).entries.some(e=>e.type==='engine_upgraded'));passed.push('legacy 0.1 snapshot upgrades without losing personal filters or site policies');
+ const migrated=await call('state');assert.equal(migrated.metadata.engineVersion,'0.3.0');assert.equal(migrated.settings.customRules,'||migration-preserved.example^\n');assert.equal(migrated.settings.sites['migration.example'].paused,true);assert.equal(migrated.settings.youtube,true);assert.ok((await call('logs')).entries.some(e=>e.type==='engine_upgraded'));assert.ok((await call('logs')).entries.some(e=>e.type==='transaction_recovered'));passed.push('legacy snapshot and pending transaction recover without losing personal filters or site policies');
  for(const [language,tag,label,placeholder] of [['pt_BR','pt-BR','Doar via PayPal','Nenhuma análise ainda.'],['zh_CN','zh-CN','通过 PayPal 捐赠','尚未进行分析。'],['en','en-US','Donate with PayPal','No analysis yet.']]){
    await dashboard.locator('[data-language]').selectOption(language);
    await dashboard.waitForFunction(({tag,label})=>document.documentElement.lang===tag&&document.querySelector('[data-donate]')?.textContent===label,{tag,label});
@@ -108,6 +108,23 @@ try {
  await call('settings',{patch:{genericCosmetic:false}});
  assert.equal(await worker.evaluate(async()=>JSON.stringify(await chrome.declarativeNetRequest.getDynamicRules())),rulesBefore);passed.push('atomic native rejection leaves settings and rules unchanged');
  await call('settings',{patch:{genericCosmetic:true}});await call('rollback');assert.equal((await call('state')).settings.genericCosmetic,false);passed.push('rollback restores previous settings and rules');
+
+ const storageLayout=await worker.evaluate(async()=>{
+  const database=await new Promise((resolve,reject)=>{const r=indexedDB.open('mblock-v1',1);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});
+  const read=(store,key)=>new Promise((resolve,reject)=>{const r=database.transaction(store).objectStore(store).get(key);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});
+  const active=await read('snapshots','active'),previous=await read('snapshots','previous');
+  const keys=await new Promise((resolve,reject)=>{const r=database.transaction('snapshots').objectStore('snapshots').getAllKeys();r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});
+  const dataKeys=keys.filter(k=>String(k).startsWith('data:'));
+  const shared=active.dataKey===previous.dataKey;
+  // Recreate a real legacy full snapshot, as produced by 0.2.x/early 0.3.0.
+  const data=await read('snapshots',active.dataKey),{storageFormat,dataKey,extraRules,...configuration}=active;
+  await new Promise((resolve,reject)=>{const tx=database.transaction('snapshots','readwrite');tx.objectStore('snapshots').put({...configuration,...data,rules:[...data.compiled.rules,...extraRules]},'active');tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)});
+  database.close();return{format:active.storageFormat,shared,dataKeys:dataKeys.length};
+ });
+ assert.deepEqual(storageLayout,{format:'shared-v1',shared:true,dataKeys:1});
+ // The next preference write must read legacy data, normalize it and preserve rollback.
+ await call('settings',{patch:{genericCosmetic:true}});await call('rollback');assert.equal((await call('state')).settings.genericCosmetic,false);
+ passed.push('shared snapshots avoid duplicate payloads, collect unused data and accept legacy snapshots');
  await site.reload();await site.waitForFunction(()=>window.essentialLoaded===true);await site.waitForTimeout(200);
  const report=await call('export');assert.equal(report.schema,'mblock-diagnostic-v1');assert.ok(report.matchedRules.some(r=>r.origins?.length));assert.ok(report.matchedRules.some(r=>r.available===false));assert.equal(report.metadata.settings,undefined);assert.equal(report.privacy.queryValues,false);passed.push('diagnostic provenance is tied to the matching ruleset generation');
  await call('diagnostic_stop');assert.equal((await call('state')).activeDiagnostic,null);

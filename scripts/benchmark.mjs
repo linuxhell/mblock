@@ -17,17 +17,17 @@ await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0
 const origin='http://site.mblock.test:'+server.address().port;
 function rss(processes){if(platform()!=='linux')return null;try{return Number(execFileSync('ps',['-p',processes.map(p=>p.id).join(','),'-o','rss='],{encoding:'utf8'}).trim().split(/\s+/).reduce((a,b)=>a+Number(b||0),0));}catch{return null;}}
 async function measure(label, extensionPath){
- const profile=await mkdtemp(tmpdir()+'/mblock-bench-');let context;
+ const profile=await mkdtemp(tmpdir()+'/mblock-bench-');let context,configuration;
  try{
   const extension=extensionPath?resolve(extensionPath):null;
   const manifest=extension?JSON.parse(await readFile(extension+'/manifest.json','utf8')):null;
   context=await chromium.launchPersistentContext(profile,{channel:process.env.MBLOCK_BROWSER_PATH?undefined:'chromium',executablePath:process.env.MBLOCK_BROWSER_PATH||undefined,headless:true,ignoreDefaultArgs:['--disable-extensions'],args:['--no-sandbox','--no-proxy-server','--host-resolver-rules=MAP site.mblock.test 127.0.0.1, MAP ads.doubleclick.net 127.0.0.1',...(extension?['--disable-extensions-except='+extension,'--load-extension='+extension]:[])]});
   const page=await context.newPage(), root=await context.browser().newBrowserCDPSession(), cdp=await context.newCDPSession(page);
   await cdp.send('Performance.enable');
-  if(label==='mblock'){
+  if(label.startsWith('mblock')){
    const worker=context.serviceWorkers()[0]||await context.waitForEvent('serviceworker');
    const ui=await context.newPage();await ui.goto('chrome-extension://'+new URL(worker.url()).host+'/ui/dashboard.html');
-   await ui.evaluate(async()=>{const r=await chrome.runtime.sendMessage({type:'state'});if(!r.ok)throw Error(r.error);await chrome.runtime.sendMessage({type:'settings',patch:{autoUpdate:false}})});await ui.close();
+   configuration=await ui.evaluate(async()=>{const r=await chrome.runtime.sendMessage({type:'state'});if(!r.ok)throw Error(r.error);const updated=await chrome.runtime.sendMessage({type:'settings',patch:{autoUpdate:false}});if(!updated.ok)throw Error(updated.error);return {stats:r.data.metadata.stats,sourceHashes:r.data.metadata.sources.map(s=>({id:s.id,sha256:s.sha256}))};});await ui.close();
   }
   // Never benchmark an extension which failed to load (notably MV2 in new Chrome).
   // Modern Playwright intentionally returns [] from backgroundPages(), even
@@ -55,15 +55,21 @@ async function measure(label, extensionPath){
    samples.push({navigationAndIdleMs:Math.round(elapsed*100)/100,cpuMs:Math.round(cpuMs*100)/100,rssKiB:rss(after),adRequestsReachedServer:adHits,...stats});
   }
   const median=key=>{const values=samples.map(x=>x[key]).filter(x=>typeof x==='number').sort((a,b)=>a-b);return values.length?values[Math.floor(values.length/2)]:null;};
-  return {label,loadedTargets,extension:manifest?{name:manifest.name,version:manifest.version,manifestVersion:manifest.manifest_version}:null,browser:context.browser().version(),samples,median:Object.fromEntries(['navigationAndIdleMs','cpuMs','rssKiB','loadMs','adRequestsReachedServer'].map(k=>[k,median(k)]))};
+  return {label,configuration,loadedTargets,extension:manifest?{name:manifest.name,version:manifest.version,manifestVersion:manifest.manifest_version}:null,browser:context.browser().version(),samples,median:Object.fromEntries(['navigationAndIdleMs','cpuMs','rssKiB','loadMs','adRequestsReachedServer'].map(k=>[k,median(k)]))};
  }finally{if(context)await context.close();await rm(profile,{recursive:true,force:true});}
 }
 try{
- const scenarios=[await measure('no-extension'),await measure('mblock','dist/chrome')];
- if(process.env.MBLOCK_BASELINE)scenarios.push(await measure('external-baseline',process.env.MBLOCK_BASELINE));
+ const configurations = [['no-extension',null]];
+ if(process.env.MBLOCK_PREVIOUS) configurations.push(['mblock-before',process.env.MBLOCK_PREVIOUS]);
+ configurations.push(['mblock','dist/chrome']);
+ if(process.env.MBLOCK_BASELINE) configurations.push(['external-baseline',process.env.MBLOCK_BASELINE]);
+ if(process.env.MBLOCK_BENCH_REVERSE === '1') configurations.reverse();
+ const scenarios=[];for(const [label,path] of configurations) scenarios.push(await measure(label,path));
+ const previous=scenarios.find(s=>s.label==='mblock-before'),current=scenarios.find(s=>s.label==='mblock');
+ if(previous && JSON.stringify(previous.configuration)!==JSON.stringify(current.configuration)) throw new Error('Before/after filter configuration differs; refuse comparison.');
  const baseline = scenarios.find(s => s.label === 'external-baseline');
  const originCompared = baseline?.extension?.name === 'uBlock Origin' && baseline.extension.manifestVersion === 2;
- const report={at:new Date().toISOString(),machine:{platform:platform(),cpu:cpus()[0]?.model,logicalCPUs:cpus().length},fixture:{runs,adsPerPage:ads,cache:'no-store; one warm-up',note:'Synthetic local fixture; no live-site claim. Fresh default profiles; mBlock auto-updates disabled after initialization; uBO default bundled lists; subscriptions are not identical. Sequential scenarios can have order and background update bias.'},comparisonToUBlockOriginComplete:originCompared,scope:'Single synthetic fixture only; not a general superiority test',baselineProvided:!!process.env.MBLOCK_BASELINE,scenarios};
+ const report={at:new Date().toISOString(),order:scenarios.map(s=>s.label),machine:{platform:platform(),cpu:cpus()[0]?.model,logicalCPUs:cpus().length},fixture:{runs,adsPerPage:ads,cache:'no-store; one warm-up',note:'Synthetic local fixture; no live-site claim. Fresh default profiles; mBlock auto-updates disabled after initialization; uBO default bundled lists; subscriptions are not identical. Sequential scenarios can have order and background update bias.'},comparisonToUBlockOriginComplete:originCompared,scope:'Single synthetic fixture only; not a general superiority test',baselineProvided:!!process.env.MBLOCK_BASELINE,scenarios};
  await mkdir('test-results',{recursive:true});await writeFile(process.env.MBLOCK_BENCH_OUTPUT || 'test-results/benchmark.json',JSON.stringify(report,null,2));
  console.log(JSON.stringify(scenarios.map(x=>({label:x.label,extension:x.extension,median:x.median})),null,2));
 }finally{await new Promise(r=>server.close(r));}
