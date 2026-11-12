@@ -4,6 +4,8 @@ Bloqueador experimental para **Chrome, Edge e Firefox**, com foco em bloqueio na
 
 **Meta: superar o uBlock Origin em casos demonstráveis, sem perder desempenho ou compatibilidade. Isso ainda não foi demonstrado.** Esta é uma base alfa; não é um substituto equivalente ao motor completo do uBlock Origin. Não existe promessa de invisibilidade a sites.
 
+A versão **0.2.0** adiciona importação/exportação e um perfil avançado específico para YouTube. Veja [o histórico](docs/CHANGELOG.md).
+
 ## O que esta versão faz
 
 - Bloqueia anúncios e rastreadores pela API nativa `declarativeNetRequest`; não executa JavaScript da extensão a cada requisição no modo normal.
@@ -11,6 +13,8 @@ Bloqueador experimental para **Chrome, Edge e Firefox**, com foco em bloqueio na
 - Atualiza dados das listas a cada 12 horas. Falhas de download, compilação ou validação mantêm a configuração anterior. Uma transação pendente é recuperada após reinício.
 - Aplica CSS por domínio com estilos de origem `USER`, sem adicionar uma tag de estilo à página. Ocultação genérica começa desativada.
 - Permite pausa global, perfis por site, regras pessoais e restauração da configuração anterior.
+- Exporta regras pessoais como TXT e backup JSON com perfis, preferências e IDs das listas. Importa com prévia, mesclagem/substituição, deduplicação e aviso de incompatibilidades. O arquivo de backup não contém logs nem dados de navegação.
+- Usa componentes GPL do uBlock Origin para gerar e empacotar o perfil de scriptlets do YouTube. Os hooks entram antes dos scripts da página e só são registrados nos domínios suportados do YouTube, em páginas de nível superior. A opção pode ser desligada e respeita a pausa por site.
 - Registra diagnósticos de uma aba por 15 minutos: requisições, erros de rede, correspondência nativa de regras quando disponível, origem dos filtros, seletores aplicados, limites e sinais de anti-adblock.
 - Exporta JSON para análise, sem enviar os logs automaticamente. Cookies, cabeçalhos, corpos de requisição e valores de parâmetros não são coletados.
 - Inclui uma correção específica para o carregador anti-adblock observado no FC Portables em 11/11/2026. Sua assinatura de URL e o comportamento de fallback têm teste de regressão; isso não certifica todos os fluxos ou versões futuras do site.
@@ -45,13 +49,21 @@ O carregador observado usa um subdomínio e caminhos variáveis, além de altern
 
 ## Limitações que importam para a meta
 
-O compilador inicial suporta filtros ABP de URL, domínios, tipos de recurso, first/third-party, exceções, `important`, `badfilter` e CSS comum, incluindo `:has()` nativo. Ele **não implementa o motor completo do uBlock**: scriptlets gerais `+js`, filtros procedurais, substituição de resposta, redirecionamentos de recursos e parte da sintaxe estendida são rejeitados e contabilizados. Essa lacuna pode causar anúncios, detecção ou quebras onde o uBlock completo já funciona. Cada lista mostra motivos e amostras no painel.
+O compilador inicial suporta filtros ABP de URL, domínios, tipos de recurso, first/third-party, exceções, `important`, `badfilter` e CSS comum, incluindo `:has()` nativo. Ele **não implementa o motor completo do uBlock**: scriptlets gerais `+js` importados pelo usuário, filtros procedurais, substituição de resposta, redirecionamentos de recursos e parte da sintaxe estendida são rejeitados e contabilizados. Essa lacuna pode causar anúncios, detecção ou quebras onde o uBlock completo já funciona. Cada lista mostra motivos e amostras no painel.
+
+O perfil YouTube específico é código empacotado, com fontes, commit e hash registrados no diagnóstico; sua atualização requer uma nova versão da extensão. Ele não significa suporte geral a qualquer scriptlet em listas importadas.
 
 As regras de rede e CSS suportadas recebem atualização automática. A correção de código específica do FC Portables muda apenas com uma versão nova da extensão. Não há execução de código baixado das listas.
 
 A versão Chromium utiliza até 30 mil regras dinâmicas; a quantidade disponível é consultada na API. Uma configuração que ultrapasse esse limite é recusada por inteiro. As regras agrupadas representam muitos filtros; sua quantidade não é uma medida de eficácia.
 
 O registro exato por `onRuleMatchedDebug` é uma capacidade de depuração de extensões descompactadas no Chrome/Edge. Um erro de rede ou uma frase na página é um sinal, não prova de detecção pelo site. A leitura de texto para encontrar avisos ocorre apenas durante o diagnóstico, em algumas amostras limitadas; não existe varredura contínua de todo o DOM no modo normal.
+
+## Importar, exportar e atualizar
+
+No painel, **Minhas regras** exporta o texto salvo em TXT ou um backup JSON. Em **Importar regras e backup**, escolha o arquivo, o modo de mesclagem ou substituição e valide a prévia. Só então aplique. Regras não suportadas são preservadas como texto apenas se você aceitar; elas não são executadas. O limite de regras pessoais é 2 MiB, sempre sujeito ao limite de regras nativas. Listas públicas são identificadas pelos IDs e baixadas de suas origens conhecidas, não embutidas no backup.
+
+Ao atualizar uma instalação Chrome/Edge descompactada, substitua os arquivos **na mesma pasta já instalada** e clique em Recarregar na página de extensões. Isso preserva o ID e as configurações. No Firefox, assine o novo ZIP mantendo o mesmo ID do complemento e instale-o como atualização. Recarregue também as abas do YouTube.
 
 ## Desenvolvimento
 

@@ -14,7 +14,7 @@ export function number(value) { return Number(value || 0).toLocaleString(localeT
 export function node(tag, text, className) { const el = document.createElement(tag); if (text !== undefined) el.textContent = t(text); if (className) el.className = className; return el; }
 export async function saveReport() {
   const report = await call('export');
-  const url = URL.createObjectURL(new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' }));
-  const link = node('a'); link.href = url; link.download = 'mblock-diagnostic-' + new Date().toISOString().replace(/[:.]/g, '-') + '.json'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 30000);
+  downloadFile('mblock-diagnostic-' + new Date().toISOString().replace(/[:.]/g, '-') + '.json', JSON.stringify(report, null, 2), 'application/json');
 }
+export function downloadFile(filename, content, mime) { const url = URL.createObjectURL(new Blob([content], { type: mime })); const link = node('a'); link.href = url; link.download = filename; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 30000); }
 export function busy(element, action) { return async () => { element.disabled = true; try { await action(); } catch (e) { status(e.message, true); } finally { element.disabled = false; } }; }

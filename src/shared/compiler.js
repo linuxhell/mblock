@@ -2,6 +2,7 @@
 // Conservative compiler: unknown modifiers reject the WHOLE filter. Never widen it.
 import { validHost, stable, domainMatches } from './core.js';
 import { LIMITS } from './sources.js';
+import { YOUTUBE_PROFILE } from './youtube-profile.js';
 const TYPES = { script: 'script', image: 'image', stylesheet: 'stylesheet', css: 'stylesheet', object: 'object', 'object-subrequest': 'object', subdocument: 'sub_frame', frame: 'sub_frame', xmlhttprequest: 'xmlhttprequest', xhr: 'xmlhttprequest', font: 'font', media: 'media', websocket: 'websocket', ping: 'ping', other: 'other', document: 'main_frame', doc: 'main_frame' };
 const ALL_TYPES = ['main_frame', 'sub_frame', 'stylesheet', 'script', 'image', 'font', 'object', 'xmlhttprequest', 'ping', 'media', 'websocket', 'other'];
 function domains(input) {
@@ -84,11 +85,12 @@ function evalCondition(expression, target) {
   const or = () => { let v = and(); while (tokens[i] === '||') { i++; const r = and(); v = v || r; } return v; };
   try { const r = or(); return i === tokens.length ? r : null; } catch { return null; }
 }
-export function compileLists(lists, { target = 'chrome', maxRules = 29000 } = {}) {
+export function compileLists(lists, { target = 'chrome', maxRules = 29000, packagedFilters = YOUTUBE_PROFILE.rules } = {}) {
+  const packaged = new Set(packagedFilters.map(([source, line]) => source + '\n' + line));
   const records = [], cosmetics = [], hideExceptions = [], report = {}, disabled = new Set();
   for (const { id, text } of lists) {
     if (new TextEncoder().encode(text).length > LIMITS.inputBytes) throw new Error('Lista muito grande: ' + id);
-    const stats = report[id] = { lines: 0, network: 0, cosmetic: 0, unsupported: 0, conditional: 0, reasons: {}, samples: [] };
+    const stats = report[id] = { lines: 0, network: 0, cosmetic: 0, packaged: 0, unsupported: 0, conditional: 0, reasons: {}, samples: [] };
     const stack = []; const lines = text.split(/\r?\n/); if (lines.length > LIMITS.lines) throw new Error('Muitas linhas: ' + id);
     for (const raw of lines) {
       stats.lines++; const line = raw.trim();
@@ -97,6 +99,7 @@ export function compileLists(lists, { target = 'chrome', maxRules = 29000 } = {}
       if (line === '!#endif') { if (!stack.length) throw new Error('Condicional inválido: ' + id); stack.pop(); continue; }
       if (stack.some(s => s.value === null || (s.alternative ? s.value : !s.value))) { if (line && !line.startsWith('!')) stats.conditional++; continue; }
       if (line.startsWith('!#include ')) { stats.unsupported++; stats.reasons['include não expandido'] = (stats.reasons['include não expandido'] || 0) + 1; continue; }
+      if (packaged.has(id + '\n' + line)) { stats.packaged++; continue; }
       const parsed = parseLine(line, id);
       if (parsed.kind === 'badfilter') { disabled.add(parsed.target); continue; }
       if (parsed.kind === 'network') { records.push(parsed); stats.network++; }

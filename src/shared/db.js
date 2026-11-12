@@ -20,7 +20,7 @@ export async function commitSnapshot(snapshot, previous) {
     const snapshots = tx.objectStore('snapshots'); snapshots.put(snapshot, 'active'); if (previous) snapshots.put(previous, 'previous');
     const cos = tx.objectStore('cosmetics'); cos.clear(); for (const [domain, items] of index) cos.put(items, domain);
     const rules = tx.objectStore('rules'); rules.clear(); for (const rule of snapshot.rules) rules.put({ rule, origins: snapshot.compiled.provenance[rule.id - 1] || [{ source: 'mblock', filter: 'Controle local / correção específica' }] }, rule.id);
-    tx.objectStore('meta').put({ at: snapshot.at, settings: snapshot.settings, sources: snapshot.sources, stats: { ...snapshot.compiled.stats, nativeRules: snapshot.rules.length }, report: snapshot.compiled.report, target: snapshot.target, hasPrevious: !!previous }, 'active');
+    tx.objectStore('meta').put({ at: snapshot.at, engineVersion: snapshot.engineVersion, settings: snapshot.settings, sources: snapshot.sources, stats: { ...snapshot.compiled.stats, nativeRules: snapshot.rules.length }, report: snapshot.compiled.report, target: snapshot.target, hasPrevious: !!previous }, 'active');
     tx.objectStore('meta').put(snapshot.compiled.hideExceptions, 'hideExceptions');
     tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); tx.onabort = () => reject(tx.error);
   });

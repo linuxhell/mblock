@@ -8,11 +8,21 @@ import * as db from './shared/db.js';
 import { readBundle } from './shared/bundle.js';
 import { analyzeEvidence } from './shared/assistant.js';
 import { BUILD_TARGET } from './shared/platform.js';
+import { syncSiteScripts, isYouTube, scriptTargetsHost } from './shared/site-scripts.js';
+import { YOUTUBE_PROFILE } from './shared/youtube-profile.js';
+import { exportRules, planImport, normalizeRules } from './shared/rule-transfer.js';
+import { probeYouTubePlayer } from './shared/youtube-probe.js';
 const api = globalThis.browser || chrome;
 const dnr = api.declarativeNetRequest;
 let settings, metadata, target, activeDiagnostic = null, journal, mutation = Promise.resolve(), updating = false;
 let initPromise, flushTimer, diagnosticAttached = false, diagCount = 0, rulesChanging = false;
 const cssByDocument = new Map();
+async function youtubeRuntime(tabId) {
+  let youtubePlayer; try { const results = await api.scripting.executeScript({ target: { tabId, frameIds: [0] }, world: 'MAIN', func: probeYouTubePlayer }); youtubePlayer = results[0]?.result || { probeFailed: true }; } catch { youtubePlayer = { probeFailed: true }; }
+  const scripts = await api.scripting.getRegisteredContentScripts();
+  const host = hostFromURL((await api.tabs.get(tabId)).url);
+  return { youtubeProfile: YOUTUBE_PROFILE, youtubePlayer, youtubeRegistered: scripts.some(s => s.id.startsWith('mblock-youtube-') && scriptTargetsHost(s, host)) };
+}
 const area = api.storage.session || api.storage.local;
 function serial(fn) { const p = mutation.then(fn, fn); mutation = p.catch(() => {}); return p; }
 function event(type, detail = {}, level = 'info') {
@@ -26,10 +36,12 @@ function requireUI(sender) { if (!isUI(sender)) throw new Error('Operação perm
 function targetName() { return BUILD_TARGET; }
 function availableLimit() { return Math.min(30000, dnr.MAX_NUMBER_OF_DYNAMIC_RULES || 5000); }
 function allRules(compiled, config) { return [...compiled.rules, ...builtInRules(config), ...controlRules(config)].map((rule, i) => ({ ...rule, id: i + 1 })); }
-function snapshot(compiled, config, sources, texts) { return { at: new Date().toISOString(), target, compiled, rules: allRules(compiled, config), settings: config, sources, texts }; }
+function snapshot(compiled, config, sources, texts) { return { at: new Date().toISOString(), engineVersion: VERSION, target, compiled, rules: allRules(compiled, config), settings: config, sources, texts }; }
+function rebuildSnapshot(old) { const config = { ...DEFAULT_SETTINGS, ...old.settings }, lists = [...old.texts]; if (config.customRules.trim()) lists.push({ id: 'custom', text: config.customRules }); return snapshot(compileLists(lists, { target, maxRules: availableLimit() - 200 }), config, old.sources, old.texts); }
 async function activate(...args) { rulesChanging = true; try { return await installSnapshot(...args); } finally { rulesChanging = false; } }
 async function installSnapshot(next, previous, saveSettings = true) {
   const oldRules = await dnr.getDynamicRules();
+  const oldSettings = settings;
   if (next.rules.length > availableLimit()) throw new Error('Limite de regras dinâmicas excedido; configuração anterior mantida.');
   const unsafe = next.rules.filter(r => !['block', 'allow', 'allowAllRequests', 'upgradeScheme'].includes(r.action.type)).length;
   if (unsafe > (dnr.MAX_NUMBER_OF_UNSAFE_DYNAMIC_RULES || 5000)) throw new Error('Limite de regras de redirecionamento excedido.');
@@ -40,10 +52,11 @@ async function installSnapshot(next, previous, saveSettings = true) {
   try {
     await dnr.updateDynamicRules({ removeRuleIds: oldRules.map(r => r.id), addRules: next.rules });
     applied = true;
+    await syncSiteScripts(api, next.settings);
     await db.commitSnapshot(next, previous);
   } catch (error) {
     // The browser update is atomic. Restore the old rules if the DB commit failed.
-    try { if (applied) await dnr.updateDynamicRules({ removeRuleIds: next.rules.map(r => r.id), addRules: oldRules }); }
+    try { if (applied) { await dnr.updateDynamicRules({ removeRuleIds: next.rules.map(r => r.id), addRules: oldRules }); await syncSiteScripts(api, oldSettings); } }
     catch (rollbackError) { event('critical_recovery_needed', { error: errMessage(rollbackError) }, 'error'); throw new Error('Falha na restauração. Reinicie a extensão para recuperar a transação.'); }
     await db.put('meta', 'pending', null);
     throw error;
@@ -67,6 +80,7 @@ async function initialize() {
     if (pending) {
       const previous = await db.get('snapshots', 'active');
       await dnr.updateDynamicRules({ removeRuleIds: (await dnr.getDynamicRules()).map(r => r.id), addRules: pending.rules });
+      await syncSiteScripts(api, pending.settings);
       await db.commitSnapshot(pending, previous);
       settings = pending.settings; await api.storage.local.set({ settings }); await db.put('meta', 'pending', null);
       event('transaction_recovered');
@@ -78,6 +92,8 @@ async function initialize() {
       event('installed', { version: VERSION, rules: metadata.stats.nativeRules });
     } else {
       settings = { ...DEFAULT_SETTINGS, ...metadata.settings };
+      if (metadata.engineVersion !== VERSION) { const old = await db.get('snapshots', 'active'); await activate(rebuildSnapshot({ ...old, settings }), old); event('engine_upgraded', { version: VERSION }); }
+      else await syncSiteScripts(api, settings);
       // Browser rules survive restarts; no recompilation and no full rules read on normal wake.
       await dnr.updateEnabledRulesets({ disableRulesetIds: ['bootstrap'] });
     }
@@ -157,6 +173,7 @@ async function startDiagnostic(tabId, details) {
   await area.set({ activeDiagnostic }); await api.alarms.create('diagnostic', { when: activeDiagnostic.until }); attachDiagnostic();
   event('diagnostic_started', { tabId, host: activeDiagnostic.host, details: activeDiagnostic.details });
   await api.tabs.sendMessage(tabId, { type: 'diagnostic_state', enabled: true }).catch(() => {});
+  if (isYouTube(hostFromURL(tab.url))) { const probe = await youtubeRuntime(tabId); event('youtube_profile', { tabId, profile: YOUTUBE_PROFILE.id, hash: YOUTUBE_PROFILE.hash, filters: YOUTUBE_PROFILE.count, enabled: !sitePolicy(settings, hostFromURL(tab.url)).paused && sitePolicy(settings, hostFromURL(tab.url)).youtube, scope: 'top_frame', player: probe.youtubePlayer }); }
 }
 async function applyCosmetics(sender) {
   const host = hostFromURL(sender.url), topHost = hostFromURL((await api.tabs.get(sender.tab.id)).url);
@@ -193,7 +210,7 @@ async function exportReport() {
     const origins = record.origins.filter(o => !o.host || requests.some(h => domainMatches(h, o.host))).slice(0, 20).map(o => o.source === 'custom' ? { source: 'custom', filter: '[regra pessoal omitida]' } : o);
     matchedRules.push({ id, generation, available: true, action: record.rule.action, origins });
   }
-  return { schema: 'mblock-diagnostic-v1', extension: { version: VERSION, target }, exportedAt: new Date().toISOString(), environment: { userAgent: navigator.userAgent }, capabilities: { nativeRuleLogging: diagnosticAttached && !!dnr.onRuleMatchedDebug, nativeLoggingNote: 'In Chromium, exact rule-match events require an unpacked extension. No event is not proof that blocking did not occur.', networkBlocking: 'declarativeNetRequest', remoteCode: false }, privacy: { cookies: false, bodies: false, headers: false, queryValues: false, pathDetails: journal.entries.some(e => e.urlDetails) }, configuration: { enabled: settings.enabled, genericCosmetic: settings.genericCosmetic, fixes: settings.fixes !== false, sites: settings.sites, sourceIds: settings.sourceIds, customRuleCount: settings.customRules.split('\n').filter(x => x.trim()).length }, metadata: publicMetadata, diagnostic: activeDiagnostic, journal: journal.toJSON(), matchedRules };
+  return { schema: 'mblock-diagnostic-v1', extension: { version: VERSION, target }, exportedAt: new Date().toISOString(), environment: { userAgent: navigator.userAgent }, capabilities: { nativeRuleLogging: diagnosticAttached && !!dnr.onRuleMatchedDebug, nativeLoggingNote: 'In Chromium, exact rule-match events require an unpacked extension. No event is not proof that blocking did not occur.', networkBlocking: 'declarativeNetRequest', remoteCode: false }, privacy: { cookies: false, bodies: false, headers: false, queryValues: false, pathDetails: journal.entries.some(e => e.urlDetails) }, youtubeProfile: { id: YOUTUBE_PROFILE.id, hash: YOUTUBE_PROFILE.hash, count: YOUTUBE_PROFILE.count, upstream: YOUTUBE_PROFILE.upstream, scope: 'top_frame' }, configuration: { enabled: settings.enabled, genericCosmetic: settings.genericCosmetic, youtube: settings.youtube !== false, fixes: settings.fixes !== false, sites: settings.sites, sourceIds: settings.sourceIds, customRuleCount: settings.customRules.split('\n').filter(x => x.trim()).length }, metadata: publicMetadata, diagnostic: activeDiagnostic, journal: journal.toJSON(), matchedRules };
 }
 async function handle(message, sender) {
   if (!message || typeof message.type !== 'string') throw new Error('Mensagem inválida.');
@@ -206,23 +223,38 @@ async function handle(message, sender) {
   }
   requireUI(sender);
   switch (message.type) {
-    case 'state': return { settings, metadata, sources: SOURCES, activeDiagnostic, updating, limit: availableLimit(), version: VERSION, target };
+    case 'state': return { settings, metadata, sources: SOURCES, activeDiagnostic, updating, limit: availableLimit(), version: VERSION, target, youtubeProfile: { id: YOUTUBE_PROFILE.id, count: YOUTUBE_PROFILE.count, hash: YOUTUBE_PROFILE.hash, upstream: YOUTUBE_PROFILE.upstream, allFrames: YOUTUBE_PROFILE.allFrames } };
     case 'site_policy': {
       const host = String(message.host || '').toLowerCase(); if (!validHost(host)) throw new Error('Domínio inválido.');
       const previous = settings.sites[host] || {}, policy = {};
-      for (const key of ['paused', 'cosmetic', 'generic', 'fixes']) if (typeof message.policy?.[key] === 'boolean') policy[key] = message.policy[key];
+      for (const key of ['paused', 'cosmetic', 'generic', 'fixes', 'youtube']) if (typeof message.policy?.[key] === 'boolean') policy[key] = message.policy[key];
       if (Object.keys(settings.sites).length >= 80 && !settings.sites[host]) throw new Error('Limite de 80 sites personalizados.');
       await serial(() => changeSettings({ sites: { ...settings.sites, [host]: { ...previous, ...policy } } })); return {};
     }
     case 'settings': {
       const p = {};
-      for (const key of ['enabled', 'autoUpdate', 'genericCosmetic', 'fixes']) if (typeof message.patch?.[key] === 'boolean') p[key] = message.patch[key];
+      for (const key of ['enabled', 'autoUpdate', 'genericCosmetic', 'fixes', 'youtube']) if (typeof message.patch?.[key] === 'boolean') p[key] = message.patch[key];
       if (message.patch?.sourceIds) { if (!Array.isArray(message.patch.sourceIds) || !message.patch.sourceIds.every(x => SOURCES.some(s => s.id === x))) throw new Error('Fonte inválida.'); p.sourceIds = [...new Set(message.patch.sourceIds)]; }
-      if (typeof message.patch?.customRules === 'string') { if (new TextEncoder().encode(message.patch.customRules).length > LIMITS.customBytes) throw new Error('Regras pessoais excedem 100 KB.'); p.customRules = message.patch.customRules; }
+      if (typeof message.patch?.customRules === 'string') p.customRules = normalizeRules(message.patch.customRules);
       await serial(() => changeSettings(p)); return {};
     }
     case 'update': return serial(updateLists);
-    case 'rollback': return serial(async () => { const prior = await db.get('snapshots', 'previous'); if (!prior) throw new Error('Ainda não há versão anterior.'); const current = await db.get('snapshots', 'active'); await activate(prior, current); event('rollback_succeeded'); await api.alarms.clear('update'); await scheduleUpdate(); return {}; });
+    case 'rollback': return serial(async () => { const prior = await db.get('snapshots', 'previous'); if (!prior) throw new Error('Ainda não há versão anterior.'); const current = await db.get('snapshots', 'active'); await activate(prior.engineVersion === VERSION ? prior : rebuildSnapshot(prior), current); event('rollback_succeeded'); await api.alarms.clear('update'); await scheduleUpdate(); return {}; });
+    case 'rules_export': return exportRules(settings, message.format);
+    case 'rules_import_preview': return serial(async () => {
+      const options = { mode: message.mode, includeSettings: message.includeSettings === true, target, maxRules: availableLimit() - 200 };
+      const plan = planImport(message.content, settings, options);
+      const token = crypto.randomUUID(); await db.put('meta', 'importPreview', { token, content: message.content, options, generation: metadata.at, until: Date.now() + 10 * 60000 });
+      return { token, ...plan.summary };
+    });
+    case 'rules_import_apply': return serial(async () => {
+      const pending = await db.get('meta', 'importPreview');
+      if (!pending || pending.token !== message.token || pending.until < Date.now()) throw new Error('A prévia expirou. Valide o arquivo novamente.');
+      if (pending.generation !== metadata.at) throw new Error('A configuração mudou. Gere uma nova prévia antes de importar.');
+      const plan = planImport(pending.content, settings, pending.options);
+      if (plan.summary.unsupported && message.allowUnsupported !== true) throw new Error('A importação contém regras não suportadas. Revise a prévia.');
+      await changeSettings(plan.patch); await db.put('meta', 'importPreview', null); event('rules_imported', { mode: plan.summary.mode, unsupported: plan.summary.unsupported }); return plan.summary;
+    });
     case 'diagnostic_start': await startDiagnostic(message.tabId, message.details); return {};
     case 'diagnostic_stop': if (activeDiagnostic) activeDiagnostic.until = 0; await expireDiagnostic(); return {};
     case 'logs': return journal.toJSON();
@@ -231,12 +263,13 @@ async function handle(message, sender) {
       const tab = await api.tabs.get(message.tabId); if (!hostFromURL(tab.url)) throw new Error('Abra um site HTTP/HTTPS.');
       let evidence; try { evidence = await api.tabs.sendMessage(tab.id, { type: 'assistant_probe' }, { frameId: 0 }); } catch { throw new Error('Recarregue o site para iniciar a análise.'); }
       if (!evidence || hostFromURL(evidence.url) !== hostFromURL(tab.url)) throw new Error('Origem inválida.');
-      const result = analyzeEvidence(evidence, settings);
+      const result = analyzeEvidence(evidence, settings, isYouTube(hostFromURL(tab.url)) ? await youtubeRuntime(tab.id) : {});
       event('assistant_analysis', { host: result.host, engines: result.engines.map(x => x.name), proposals: result.proposals.map(x => x.id), generativeAI: false });
       return result;
     }
     case 'assistant_enable_known_fix': {
       const tab = await api.tabs.get(message.tabId); const host = hostFromURL(tab.url);
+      if (isYouTube(host) && YOUTUBE_PROFILE.count > 0) { await serial(() => changeSettings({ youtube: true, sites: { ...settings.sites, [host]: { ...settings.sites[host], youtube: true } } })); event('known_fix_enabled', { host, fix: 'youtube-v1' }); return {}; }
       if (!host || !domainMatches(host, 'fcportables.com')) throw new Error('Não há correção conhecida para este site.');
       const evidence = await api.tabs.sendMessage(tab.id, { type: 'assistant_probe' }, { frameId: 0 });
       const analysis = analyzeEvidence(evidence, settings); if (!analysis.proposals.some(x => x.id === 'fcportables-core-v1')) throw new Error('A assinatura conhecida não foi encontrada.');

@@ -1,10 +1,10 @@
 # Envio para assinatura do Firefox
 
-Pacote: `mblock-firefox-0.1.0.zip`. Ele já contém `manifest.json` na raiz; envie o próprio ZIP, sem colocar os arquivos em outra pasta.
+Pacote: `mblock-firefox-0.2.0.zip`. Ele já contém `manifest.json` na raiz; envie o próprio ZIP, sem colocar os arquivos em outra pasta.
 
 1. Acesse https://addons.mozilla.org/developers/addon/submit/ com sua conta Mozilla.
 2. Escolha distribuição pelo site da Mozilla se deseja uma listagem pública, ou distribuição própria se deseja somente um XPI assinado para instalar e compartilhar.
-3. Envie o ZIP Firefox e siga a validação. Se o processo pedir o código-fonte, envie `mblock-fontes-0.1.0.zip`.
+3. Envie o ZIP Firefox e siga a validação. Se o processo pedir o código-fonte, envie `mblock-fontes-0.2.0.zip`.
 4. Descreva como versão experimental, sem prometer superioridade ao uBlock Origin ou ausência de detecção. O assistente atual usa heurísticas locais, sem modelo de IA remoto.
 5. Depois que a Mozilla assinar, baixe o `.xpi` produzido por ela. Renomear nosso ZIP para `.xpi` não o torna assinado.
 

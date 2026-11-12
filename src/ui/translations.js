@@ -76,12 +76,72 @@ export const STRINGS = [
 ['Aplicando preferências…','Applying preferences…','正在应用首选项…'],['Preferências salvas. Recarregue as páginas abertas.','Preferences saved. Reload open pages.','首选项已保存。请重新加载已打开的页面。'],['Atualização concluída.','Update complete.','更新完成。'],['Configuração anterior restaurada. Recarregue os sites.','Previous configuration restored. Reload sites.','已恢复上一配置。请重新加载网站。'],['Validando seleção e baixando listas novas…','Validating selection and downloading new lists…','正在验证选择并下载新列表…'],['Listas salvas.','Lists saved.','列表已保存。'],['Validando regras pessoais…','Validating personal rules…','正在验证个人规则…'],['Regras processadas. Consulte os filtros não suportados acima.','Rules processed. Check unsupported filters above.','规则已处理。请查看上方不支持的规则。'],['Perfil salvo. Recarregue a aba.','Profile saved. Reload the tab.','配置已保存。请重新加载标签页。'],['Diagnóstico iniciado. Recarregue o site e reproduza o problema.','Diagnostics started. Reload the site and reproduce the problem.','诊断已开始。请重新加载网站并重现问题。'],['Diagnóstico encerrado.','Diagnostics stopped.','诊断已结束。'],['Selecione uma aba.','Select a tab.','请选择标签页。'],['Aba recarregada.','Tab reloaded.','标签页已重新加载。'],['Eventos apagados.','Events cleared.','事件已清空。'],['Arquivo JSON exportado. Você pode anexá-lo aqui para análise.','JSON file exported. You can attach it here for analysis.','JSON 已导出。您可以在此附上文件以便分析。'],['Simulação concluída.','Simulation complete.','模拟完成。'],['Ainda não','Not yet','尚未'],
 ['EasyList · anúncios','EasyList · ads','EasyList · 广告'],['EasyPrivacy · rastreamento','EasyPrivacy · tracking','EasyPrivacy · 跟踪'],['uBlock · privacidade','uBlock · privacy','uBlock · 隐私'],['uBlock · compatibilidade','uBlock · compatibility','uBlock · 兼容性'],['uBlock · correções rápidas','uBlock · quick fixes','uBlock · 快速修复'],['uBlock · sites maliciosos','uBlock · badware','uBlock · 恶意网站'],['AdGuard · português (opcional)','AdGuard · Portuguese (optional)','AdGuard · 葡萄牙语（可选）'],['HaGeZi Multi PRO · domínios (opcional)','HaGeZi Multi PRO · domains (optional)','HaGeZi Multi PRO · 域名（可选）'],
 ['A extensão não respondeu.','The extension did not respond.','扩展未响应。'],['Operação permitida apenas no painel da extensão.','This operation is only allowed from the extension dashboard.','仅允许从扩展控制面板执行此操作。'],['Limite de regras dinâmicas excedido; configuração anterior mantida.','Dynamic rule limit exceeded; previous configuration retained.','超出动态规则上限；已保留上一配置。'],['Limite de regras de redirecionamento excedido.','Redirect rule limit exceeded.','超出重定向规则上限。'],['Falha na restauração. Reinicie a extensão para recuperar a transação.','Restore failed. Restart the extension to recover the transaction.','恢复失败。请重启扩展以恢复事务。'],['Uma atualização já está em andamento.','An update is already in progress.','更新已在进行中。'],['Abra um site HTTP/HTTPS.','Open an HTTP/HTTPS site.','请打开 HTTP/HTTPS 网站。'],['Domínio inválido.','Invalid domain.','域名无效。'],['Limite de 80 sites personalizados.','Maximum of 80 custom site profiles.','最多可自定义 80 个网站配置。'],['Fonte inválida.','Invalid source.','来源无效。'],['Regras pessoais excedem 100 KB.','Personal rules exceed 100 KB.','个人规则超过 100 KB。'],['Ainda não há versão anterior.','No previous version is available yet.','尚无可用的上一版本。'],['Use URLs HTTP/HTTPS válidas.','Use valid HTTP/HTTPS URLs.','请使用有效的 HTTP/HTTPS 网址。'],['Simulação nativa indisponível neste navegador.','Native simulation is unavailable in this browser.','此浏览器不支持原生模拟。'],['Limite de seletores excedido; configuração anterior mantida.','Selector limit exceeded; previous configuration retained.','超出选择器上限；已保留上一配置。'],
-['Assistente local de anti-adblock','Local anti-adblock assistant','本地反广告拦截检测助手'],['Analisar mecanismo','Analyze mechanism','分析机制'],['Análise sob demanda por sinais técnicos. Identificações e propostas têm grau de confiança; um mecanismo desconhecido não recebe correção automática.','On-demand analysis of technical signals. Identifications and proposals have confidence levels; unknown mechanisms are not fixed automatically.','按需分析技术信号。识别与建议附带置信度；不会自动修复未知机制。'],['Nenhuma análise ainda.','No analysis yet.','尚未进行分析。'],['Análise concluída.','Analysis complete.','分析完成。'],['Ativar correção conhecida','Enable known fix','启用已知修复'],['Correção conhecida ativada. Recarregue a aba e repita o diagnóstico.','Known fix enabled. Reload the tab and repeat diagnostics.','已启用已知修复。请重新加载标签页并重新诊断。']
+['Assistente local de anti-adblock','Local anti-adblock assistant','本地反广告拦截检测助手'],['Analisar mecanismo','Analyze mechanism','分析机制'],['Análise sob demanda por sinais técnicos. Identificações e propostas têm grau de confiança; um mecanismo desconhecido não recebe correção automática.','On-demand analysis of technical signals. Identifications and proposals have confidence levels; unknown mechanisms are not fixed automatically.','按需分析技术信号。识别与建议附带置信度；不会自动修复未知机制。'],['Nenhuma análise ainda.','No analysis yet.','尚未进行分析。'],['Análise concluída.','Analysis complete.','分析完成。'],['Ativar correção conhecida','Enable known fix','启用已知修复'],['Correção conhecida ativada. Recarregue a aba e repita o diagnóstico.','Known fix enabled. Reload the tab and repeat diagnostics.','已启用已知修复。请重新加载标签页并重新诊断。'],
+["ALFA 0.2","ALPHA 0.2","测试版 0.2"],
+["Bloqueio avançado no YouTube","Advanced YouTube blocking","YouTube 高级拦截"],
+["Perfil do YouTube: {count} filtros avançados. Recarregue as abas do YouTube após alterar esta opção.","YouTube profile: {count} advanced filters. Reload YouTube tabs after changing this option.","YouTube 配置：{count} 条高级规则。更改此选项后，请重新加载 YouTube 标签页。"],
+["Avançados empacotados","Packaged advanced filters","内置高级规则"],
+["Exportar regras TXT","Export rules as TXT","导出 TXT 规则"],
+["Exportar backup JSON","Export JSON backup","导出 JSON 备份"],
+["O TXT contém as regras pessoais salvas. O backup JSON inclui também perfis, preferências e listas selecionadas, sem logs ou dados de navegação.","TXT contains saved personal rules. The JSON backup also includes site profiles, preferences and selected lists, without logs or browsing data.","TXT 包含已保存的个人规则。JSON 备份还包括网站配置、首选项和所选列表，不包含日志或浏览数据。"],
+["Importar regras e backup","Import rules and backup","导入规则与备份"],
+["Arquivo TXT ou JSON do mBlock","TXT file or mBlock JSON backup","TXT 文件或 mBlock JSON 备份"],
+["Modo de importação","Import mode","导入模式"],
+["Mesclar e remover duplicadas","Merge and remove duplicates","合并并去重"],
+["Substituir regras pessoais","Replace personal rules","替换个人规则"],
+["Importar também perfis e preferências do JSON","Also import profiles and preferences from JSON","同时导入 JSON 中的配置和首选项"],
+["Validar arquivo e mostrar prévia","Validate file and preview","验证文件并预览"],
+["Aplicar importação","Apply import","应用导入"],
+["Aceitar regras não suportadas e mantê-las no texto","Accept unsupported rules and retain them as text","接受不支持的规则并保留其文本"],
+["As regras incompatíveis não são executadas. O arquivo só é aplicado após a prévia; em caso de falha, a configuração anterior é mantida.","Unsupported rules are not executed. The file is applied only after preview; failures retain the previous configuration.","不执行不兼容的规则。预览后才会应用文件；失败时保留上一配置。"],
+["Nenhum arquivo validado.","No validated file.","尚无已验证的文件。"],
+["Regras exportadas. O arquivo contém apenas o que foi salvo.","Rules exported. The file contains only saved changes.","规则已导出。文件仅包含已保存的更改。"],
+["Selecione um arquivo TXT ou JSON.","Select a TXT or JSON file.","请选择 TXT 或 JSON 文件。"],
+["Arquivo: {name}","File: {name}","文件：{name}"],
+["Formato: {format}","Format: {format}","格式：{format}"],
+["Filtros de rede recebidos: {count}","Imported network filters: {count}","导入的网络规则：{count}"],
+["Filtros cosméticos recebidos: {count}","Imported cosmetic filters: {count}","导入的外观规则：{count}"],
+["Duplicadas removidas: {count}","Duplicates removed: {count}","已去除重复规则：{count}"],
+["Regras não suportadas: {count}","Unsupported rules: {count}","不支持的规则：{count}"],
+["Perfis de site após importação: {count}","Site profiles after import: {count}","导入后的网站配置：{count}"],
+["Listas selecionadas: {count}","Selected lists: {count}","所选列表：{count}"],
+["Perfis e preferências do backup serão restaurados.","Backup profiles and preferences will be restored.","将恢复备份中的配置和首选项。"],
+["Prévia pronta. Revise as alterações e aplique a importação.","Preview ready. Review the changes and apply the import.","预览已就绪。请检查更改后应用导入。"],
+["Valide o arquivo antes de importar.","Validate the file before importing.","请先验证文件，再进行导入。"],
+["Importação concluída. Recarregue os sites abertos.","Import complete. Reload open sites.","导入完成。请重新加载已打开的网站。"],
+["As regras devem ser texto.","Rules must be text.","规则必须为文本。"],
+["O arquivo contém caracteres de controle inválidos.","The file contains invalid control characters.","文件包含无效的控制字符。"],
+["Regras pessoais excedem 2 MiB.","Personal rules exceed 2 MiB.","个人规则超过 2 MiB。"],
+["O arquivo excede 60.000 linhas de regras pessoais.","The file exceeds 60,000 personal rule lines.","文件超过 60,000 行个人规则。"],
+["Configuração de backup inválida.","Invalid backup configuration.","备份配置无效。"],
+["Campo de configuração não suportado: {field}","Unsupported configuration field: {field}","不支持的配置字段：{field}"],
+["Preferência booleana inválida: {field}","Invalid boolean preference: {field}","布尔首选项无效：{field}"],
+["O intervalo de atualização do backup não é suportado.","The backup update interval is not supported.","不支持备份中的更新间隔。"],
+["O backup contém uma lista desconhecida.","The backup contains an unknown list.","备份包含未知列表。"],
+["Perfis de sites inválidos ou limite de 80 sites excedido.","Invalid site profiles or the 80-site limit was exceeded.","网站配置无效，或超过 80 个网站的上限。"],
+["O backup contém um domínio inválido.","The backup contains an invalid domain.","备份包含无效域名。"],
+["O backup contém uma opção de site inválida.","The backup contains an invalid site option.","备份包含无效的网站选项。"],
+["Arquivo de importação excede 6 MiB.","Import file exceeds 6 MiB.","导入文件超过 6 MiB。"],
+["Arquivo JSON inválido. Nenhuma regra foi alterada.","Invalid JSON file. No rules were changed.","JSON 文件无效。未更改任何规则。"],
+["Este JSON não é um backup de regras do mBlock.","This JSON is not an mBlock rule backup.","此 JSON 不是 mBlock 规则备份。"],
+["O backup não contém regras pessoais.","The backup contains no personal rules.","备份不包含个人规则。"],
+["Modo de importação inválido.","Invalid import mode.","导入模式无效。"],
+["A importação excederia o limite de 80 sites.","The import would exceed the 80-site limit.","导入将超过 80 个网站的上限。"],
+["Formato de exportação inválido.","Invalid export format.","导出格式无效。"],
+["A prévia expirou. Valide o arquivo novamente.","The preview expired. Validate the file again.","预览已过期。请重新验证文件。"],
+["A configuração mudou. Gere uma nova prévia antes de importar.","The configuration changed. Generate a new preview before importing.","配置已更改。导入前请重新生成预览。"],
+["A importação contém regras não suportadas. Revise a prévia.","The import contains unsupported rules. Review the preview.","导入包含不支持的规则。请检查预览。"]
 ];
 export const LOCALES = { en: 'en-US', pt_BR: 'pt-BR', zh_CN: 'zh-CN' };
+const TEMPLATES = STRINGS.filter(row => /\{\w+\}/.test(row[0])).map(row => {
+  const keys = [], pieces = row[0].split(/\{(\w+)\}/);
+  const pattern = pieces.map((part, i) => { if (i % 2) { keys.push(part); return '(.+?)'; } return part.replace(/[|\\{}()[\]^$+*?.]/g, '\\$&'); }).join('');
+  return {row,keys,re:new RegExp('^' + pattern + '$')};
+});
 export function translate(text, locale, values = {}) {
   text = String(text);
   const index = locale === 'en' ? 1 : locale === 'zh_CN' ? 2 : 0;
-  const entry = STRINGS.find(row => row[0] === text);
+  let entry = STRINGS.find(row => row[0] === text);
+  if (!entry) for (const template of TEMPLATES) { const match = template.re.exec(text); if (match) { entry = template.row; values = Object.fromEntries(template.keys.map((key,i) => [key,match[i+1]])); break; } }
   return (entry?.[index] || text).replace(/\{(\w+)\}/g, (all, key) => values[key] === undefined ? all : String(values[key]));
 }

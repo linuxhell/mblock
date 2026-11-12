@@ -1,0 +1,6 @@
+{
+  "repository": "https://github.com/gorhill/uBlock",
+  "commit": "2bc679d99afe5bddd8fe3ab60137966a12123f41",
+  "purpose": "Build-time parser and scriptlet generator for the packaged YouTube profile. Runtime uses generated scripts only.",
+  "license": "GPL-3.0-or-later; see embedded third-party notices."
+}

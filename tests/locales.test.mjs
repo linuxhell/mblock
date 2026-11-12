@@ -7,3 +7,7 @@ test('every interface string has three complete translations and stable placehol
 test('selected locale controls labels and substitutions',()=>{
  assert.equal(translate('Doar via PayPal','en'),'Donate with PayPal');assert.equal(translate('Doar via PayPal','zh_CN'),'通过 PayPal 捐赠');assert.equal(translate('Configuração instalada: {time}','en',{time:'today'}),'Configuration installed: today');
 });
+test('parameterized import errors are translated without losing technical field names',()=>{
+ assert.equal(translate('Campo de configuração não suportado: something','en'),'Unsupported configuration field: something');
+ assert.equal(translate('Preferência booleana inválida: enabled','zh_CN'),'布尔首选项无效：enabled');
+});

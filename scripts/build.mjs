@@ -4,6 +4,7 @@ import { SOURCES, VERSION } from '../src/shared/sources.js';
 import { compileLists } from '../src/shared/compiler.js';
 import { builtInRules } from '../src/shared/fixes.js';
 import { STRINGS } from '../src/ui/translations.js';
+import { buildYouTube } from './build-youtube.mjs';
 execFileSync('python3', ['scripts/icons.py']);
 const texts = [];
 for (const s of SOURCES.filter(s => s.enabled)) {
@@ -22,7 +23,8 @@ for (const target of ['chrome', 'edge', 'firefox']) {
     STRINGS.forEach((row, i) => { messages['ui_' + i] = { message: row[index].replaceAll('$','$$') }; });
     await mkdir(`${dir}/_locales/${language}`,{recursive:true});await writeFile(`${dir}/_locales/${language}/messages.json`,JSON.stringify(messages,null,2)+'\n');
   }
-  const compiled = compileLists(texts, { target, maxRules: 29800 });
+  const profile = await buildYouTube(texts, target, dir);
+  const compiled = compileLists(texts, { target, maxRules: 29800, packagedFilters: profile.rules });
   const bootstrap = [{ id: 1, priority: 10, action: { type: 'block' }, condition: { requestDomains: ['doubleclick.net', 'googlesyndication.com', 'adnxs.com', 'adsrvr.org', 'popads.net'], excludedResourceTypes: ['main_frame'] } }, ...builtInRules({}).map((r, i) => ({ ...r, id: i + 2 }))];
   const manifest = { ...common, background: target === 'firefox' ? { scripts: ['background.js'], type: 'module' } : { service_worker: 'background.js', type: 'module' } };
   if (target === 'firefox') manifest.browser_specific_settings = { gecko: { id: 'mblock@linuxhell.github.io', strict_min_version: '142.0', data_collection_permissions: { required: ['none'] } } };
@@ -45,7 +47,7 @@ for (const target of ['chrome', 'edge', 'firefox']) {
   await writeFile(dir + '/data/default.json', JSON.stringify({ compiled: smallCompiled, parts, texts: textIndex, sources }));
   await writeFile(dir + '/data/bootstrap.json', JSON.stringify(bootstrap));
   await cp('LICENSE', dir + '/LICENSE'); await cp('THIRD_PARTY_NOTICES.md', dir + '/THIRD_PARTY_NOTICES.md');
-  summaries[target] = { ...compiled.stats, bundledRules: bootstrap.length };
+  summaries[target] = { ...compiled.stats, bundledRules: bootstrap.length, youtubeScriptlets: profile.count, youtubeProfileHash: profile.hash };
   console.log(target + ': ' + JSON.stringify(summaries[target]));
 }
 await writeFile('dist/build-report.json', JSON.stringify({ version: VERSION, at: new Date().toISOString(), sources, targets: summaries }, null, 2) + '\n');

@@ -1,7 +1,7 @@
-import { $, api, call, status, time, number, node, busy, saveReport, t, localeTag } from './common.js';
+import { $, api, call, status, time, number, node, busy, saveReport, downloadFile, t, localeTag } from './common.js';
 import { hostFromURL, sitePolicy } from '../shared/core.js';
-let state, tabs = [], logs = { entries: [] }, timer;
-const bind = (selector, fn) => { $(selector).onclick = busy($(selector), fn); };
+let state, tabs = [], logs = { entries: [] }, timer, importPreview;
+const bind = (selector, fn) => { const action = busy($(selector), fn); $(selector).onclick = async () => { await action(); if (selector === '#apply-import') updateImportButton(); }; };
 function selectedTab() { return tabs.find(t => t.id === Number($('#tab').value)); }
 function renderSite() {
   const host = hostFromURL(selectedTab()?.url);
@@ -11,6 +11,8 @@ function renderSite() {
   $('#site-fixes').checked = state.settings.sites?.['fcportables.com']?.fixes !== false && state.settings.fixes !== false;
   $('#site-fixes').disabled = !/(^|\.)fcportables\.com$/.test(host);
   $('#save-site').disabled = !host;
+  for (const id of ['start', 'reload', 'analyze', 'site-paused', 'site-cosmetic', 'site-generic']) $('#' + id).disabled = !host;
+  $('#apply-known-fix').disabled = true;
   if (selectedTab()) $('#test-origin').value = selectedTab().url;
 }
 async function refreshTabs() {
@@ -29,6 +31,8 @@ async function refresh() {
   $('#engine').textContent = state.target + ' · Manifest V3';
   $('#updated').textContent = t('Configuração instalada: {time}', { time: time(state.metadata?.at) });
   $('#enabled').checked = state.settings.enabled; $('#automatic').checked = state.settings.autoUpdate; $('#generic').checked = state.settings.genericCosmetic; $('#fixes').checked = state.settings.fixes !== false;
+  $('#youtube').checked = state.settings.youtube !== false;
+  $('#youtube-profile').textContent = t('Perfil do YouTube: {count} filtros avançados. Recarregue as abas do YouTube após alterar esta opção.', {count:number(state.youtubeProfile?.count)});
   $('#custom').value = state.settings.customRules; $('#rollback').disabled = !state.metadata?.hasPrevious;
   const diag = state.activeDiagnostic;
   $('#diag-state').textContent = diag ? t('● Monitorando {host} até {time}. Reproduza o problema na aba.', { host: diag.host, time: new Date(diag.until).toLocaleTimeString(localeTag()) }) : t('Nenhuma sessão ativa.');
@@ -38,7 +42,7 @@ async function refresh() {
     const r = node('tr'), name = node('td'), label = node('label', undefined, 'check'), checkbox = node('input'); checkbox.type = 'checkbox'; checkbox.checked = state.settings.sourceIds.includes(s.id); checkbox.dataset.source = s.id;
     label.append(checkbox, node('span', s.name)); name.append(label); r.append(name);
     const metadata = state.metadata?.sources.find(x => x.id === s.id), stats = state.metadata?.report[s.id];
-    r.append(node('td', metadata ? time(metadata.fetchedAt) : 'Inativa'), node('td', number(stats?.network)), node('td', number(stats?.cosmetic)), node('td', number(stats?.unsupported)));
+    r.append(node('td', metadata ? time(metadata.fetchedAt) : 'Inativa'), node('td', number(stats?.network)), node('td', number(stats?.cosmetic)), node('td', number(stats?.packaged)), node('td', number(stats?.unsupported)));
     const source = node('td'), a = node('a', 'Ver lista'); a.href = s.url; a.target = '_blank'; a.rel = 'noopener noreferrer'; source.append(a); r.append(source); $('#sources').append(r);
   }
   $('#unsupported-title').textContent = t('{count} filtros não suportados · ver motivos', { count: number(state.metadata?.stats.unsupported) });
@@ -57,11 +61,26 @@ function renderLogs() {
   }
 }
 async function refreshLogs() { logs = await call('logs'); renderLogs(); }
-bind('#save-settings', async () => { status('Aplicando preferências…'); await call('settings', { patch: { enabled: $('#enabled').checked, autoUpdate: $('#automatic').checked, genericCosmetic: $('#generic').checked, fixes: $('#fixes').checked } }); await refresh(); status('Preferências salvas. Recarregue as páginas abertas.'); });
+bind('#save-settings', async () => { status('Aplicando preferências…'); await call('settings', { patch: { enabled: $('#enabled').checked, autoUpdate: $('#automatic').checked, genericCosmetic: $('#generic').checked, fixes: $('#fixes').checked, youtube: $('#youtube').checked } }); await refresh(); status('Preferências salvas. Recarregue as páginas abertas.'); });
 bind('#update', async () => { status('Baixando e validando as listas…'); await call('update'); await refresh(); await refreshLogs(); status('Atualização concluída.'); });
 bind('#rollback', async () => { await call('rollback'); await refresh(); status('Configuração anterior restaurada. Recarregue os sites.'); });
 bind('#save-sources', async () => { status('Validando seleção e baixando listas novas…'); const ids = [...document.querySelectorAll('[data-source]:checked')].map(x => x.dataset.source); await call('settings', { patch: { sourceIds: ids } }); await refresh(); status('Listas salvas.'); });
 bind('#save-custom', async () => { status('Validando regras pessoais…'); await call('settings', { patch: { customRules: $('#custom').value } }); await refresh(); status('Regras processadas. Consulte os filtros não suportados acima.'); });
+for (const format of ['txt','json']) bind('#export-rules-' + format, async () => { const file = await call('rules_export', {format}); downloadFile(file.filename,file.content,file.mime); status('Regras exportadas. O arquivo contém apenas o que foi salvo.'); });
+function updateImportButton() { $('#apply-import').disabled = !importPreview || (importPreview.unsupported > 0 && !$('#import-unsupported').checked); }
+function invalidateImport() { importPreview = null; updateImportButton(); $('#import-preview').textContent = t('Nenhum arquivo validado.'); }
+for (const id of ['import-file','import-mode','import-settings']) $('#' + id).onchange = invalidateImport;
+$('#import-unsupported').onchange = updateImportButton;
+bind('#preview-import', async () => {
+  invalidateImport(); const file = $('#import-file').files[0]; if (!file) throw new Error('Selecione um arquivo TXT ou JSON.');
+  if (file.size > 6 * 1024 * 1024) throw new Error('Arquivo de importação excede 6 MiB.');
+  const preview = await call('rules_import_preview', {content:await file.text(),mode:$('#import-mode').value,includeSettings:$('#import-settings').checked}); importPreview = preview;
+  const lines = [t('Arquivo: {name}',{name:file.name}),t('Formato: {format}',{format:preview.format.toUpperCase()}),t('Filtros de rede recebidos: {count}',{count:number(preview.incomingNetwork)}),t('Filtros cosméticos recebidos: {count}',{count:number(preview.incomingCosmetic)}),t('Duplicadas removidas: {count}',{count:number(preview.duplicates)}),t('Regras não suportadas: {count}',{count:number(preview.unsupported)}),t('Perfis de site após importação: {count}',{count:number(preview.siteProfiles)}),t('Listas selecionadas: {count}',{count:preview.sourceIds.length})];
+  if (preview.preferencesIncluded) lines.push(t('Perfis e preferências do backup serão restaurados.'));
+  if (preview.unsupportedSamples.length) lines.push('\n' + JSON.stringify(preview.unsupportedSamples,null,2));
+  $('#import-preview').textContent = lines.join('\n'); updateImportButton(); status('Prévia pronta. Revise as alterações e aplique a importação.');
+});
+bind('#apply-import', async () => { if (!importPreview) throw new Error('Valide o arquivo antes de importar.'); await call('rules_import_apply',{token:importPreview.token,allowUnsupported:$('#import-unsupported').checked}); invalidateImport(); await refresh(); status('Importação concluída. Recarregue os sites abertos.'); });
 bind('#save-site', async () => { const host = hostFromURL(selectedTab()?.url); await call('site_policy', { host, policy: { paused: $('#site-paused').checked, cosmetic: $('#site-cosmetic').checked, generic: $('#site-generic').checked } }); if (!$('#site-fixes').disabled) await call('site_policy', { host: 'fcportables.com', policy: { fixes: $('#site-fixes').checked } }); await refresh(); status('Perfil salvo. Recarregue a aba.'); });
 bind('#start', async () => { await call('diagnostic_start', { tabId: Number($('#tab').value), details: $('#details').checked }); await refresh(); await refreshLogs(); status('Diagnóstico iniciado. Recarregue o site e reproduza o problema.'); });
 bind('#stop', async () => { await call('diagnostic_stop'); await refresh(); status('Diagnóstico encerrado.'); });

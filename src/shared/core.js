@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-export const DEFAULT_SETTINGS = Object.freeze({ enabled: true, autoUpdate: true, intervalHours: 12, genericCosmetic: false, sites: {}, sourceIds: null, customRules: '' });
+export const DEFAULT_SETTINGS = Object.freeze({ enabled: true, autoUpdate: true, intervalHours: 12, genericCosmetic: false, youtube: true, sites: {}, sourceIds: null, customRules: '' });
 export function hostFromURL(value) { try { const u = new URL(value); return /^(https?:)$/.test(u.protocol) ? u.hostname.toLowerCase().replace(/\.$/, '') : ''; } catch { return ''; } }
 export function validHost(value) {
   return typeof value === 'string' && value.length <= 253 && /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(value);
@@ -8,7 +8,7 @@ export function domainMatches(host, domain) { return host === domain || host.end
 export function sitePolicy(settings, host) {
   let found = ''; let policy = {};
   for (const [domain, value] of Object.entries(settings.sites || {}).filter(([d]) => domainMatches(host, d)).sort(([a], [b]) => a.length - b.length)) { found = domain; policy = { ...policy, ...value }; }
-  return { paused: !settings.enabled || policy.paused === true, cosmetic: policy.cosmetic !== false, generic: policy.generic ?? settings.genericCosmetic, domain: found || host };
+  return { paused: !settings.enabled || policy.paused === true, cosmetic: policy.cosmetic !== false, generic: policy.generic ?? settings.genericCosmetic, youtube: settings.youtube !== false && policy.youtube !== false, domain: found || host };
 }
 export function stable(value) {
   if (Array.isArray(value)) return '[' + value.map(stable).join(',') + ']';

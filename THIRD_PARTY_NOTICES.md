@@ -14,3 +14,9 @@ Os arquivos de assinatura distribuídos dentro de `data/default.json` preservam 
 As listas opcionais são baixadas somente quando habilitadas. URLs e SHA-256 de cada coleta constam no relatório de compilação e no diagnóstico. SHA-256 identifica os bytes recebidos; não é uma assinatura de autenticidade. As atualizações usam HTTPS das origens configuradas.
 
 O ícone e a interface do mBlock são originais. A correção FC Portables foi escrita a partir da inspeção do carregador público da página em 11/11/2026; o código remoto do site não integra a extensão.
+
+## Componentes do uBlock Origin no perfil YouTube
+
+O gerador de scriptlets, o parser e seus auxiliares em `vendor/ublock` foram obtidos de https://github.com/gorhill/uBlock, commit `2bc679d99afe5bddd8fe3ab60137966a12123f41`. Copyright Raymond Hill e colaboradores, GPL-3.0-or-later. Os avisos originais e licenças dos componentes auxiliares foram preservados no diretório vendorizado.
+
+O build seleciona apenas os filtros de scriptlets específicos dos domínios do YouTube nas fontes uAssets, gera os arquivos em `site/` e os inclui no pacote. Esse código é distribuído com a extensão; não é compilado nem executado a partir de downloads feitos em tempo de uso. O código-fonte para revisão inclui o gerador, os componentes vendorizados e o snapshot das listas utilizado.
