@@ -30,3 +30,11 @@ test('FileCatchers AntiAdblockCore loader gets the packaged known fix only with 
  const unverified=analyzeEvidence({url:'https://www.filecatchers.com/',markers:['antiadblock-core loader','antiadblock-core meta'],scripts:['https://cdn.filecatchers.com/static/site.js']},{fixes:false,sites:{}});
  assert.equal(unverified.proposals.length,0);assert.equal(unverified.canApplyKnownFix,false);
 });
+
+test('AntiAdblockCore known fix is global and does not depend on a domain allowlist',()=>{
+ const sites=['https://www.filecatchers.com/','https://mirror.example/','https://downloads.example.net/'];
+ for (const url of sites) {
+  const result=analyzeEvidence({url,markers:['antiadblock-core loader','antiadblock-core meta'],scripts:['https://cdn.example/4245c2/4b7ea0/main.fb71facc6f58dac3.min.js?ver=redacted']},{fixes:false,sites:{}});
+  assert.equal(result.proposals.length,1);assert.equal(result.proposals[0].id,'antiadblock-core-v1');assert.equal(result.canApplyKnownFix,true);
+ }
+});
