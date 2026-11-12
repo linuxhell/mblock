@@ -71,7 +71,7 @@ function isUI(sender) { return sender.id === api.runtime.id && typeof sender.url
 function requireUI(sender) { if (!isUI(sender)) throw new Error('Operação permitida apenas no painel da extensão.'); }
 function targetName() { return BUILD_TARGET; }
 function availableLimit() { return Math.min(30000, dnr.MAX_NUMBER_OF_DYNAMIC_RULES || 5000); }
-function allRules(compiled, config) { return [...compiled.rules, ...builtInRules(config), ...controlRules(config)].map((rule, i) => ({ ...rule, id: i + 1 })); }
+function allRules(compiled, config) { const base=compiled.rules; const extra=[...builtInRules(config),...controlRules(config)].map((rule,i)=>({...rule,id:base.length+i+1})); return extra.length ? base.concat(extra) : base; }
 function snapshot(compiled, config, sources, texts) { return { at: nextConfigurationTime(metadata?.at), transactionId:crypto.randomUUID(), engineVersion: VERSION, target, compiled, rules: allRules(compiled, config), settings: config, sources, texts }; }
 function rebuildSnapshot(old) { const config = { ...DEFAULT_SETTINGS, ...old.settings }, lists = [...old.texts]; if (config.customRules.trim()) lists.push({ id: 'custom', text: config.customRules }); return snapshot(compileLists(lists, { target, maxRules: availableLimit() - 200 }), config, old.sources, old.texts); }
 async function activate(...args) { rulesChanging = true; try { return await installSnapshot(...args); } finally { rulesChanging = false; } }
