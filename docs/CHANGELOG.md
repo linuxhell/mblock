@@ -1,3 +1,15 @@
+# 0.3.0 — 2026-11-12
+
+RAM/CPU: alterações de controles atualizam apenas regras locais e envelopes; cache CSS limitado/coalescido; leituras cosméticas atômicas; índice por domínio sem repetição de includes. CPU de pausa/retomada 90% menor e RSS após a operação 229–251 MiB menor contra o build anterior. Navegação teve pequeno ganho de RAM e CPU sem melhoria consistente contra o próprio build; a variante de 24 frames manteve menor CPU/RSS que uBO. Recuperação preserva rollback de commit já concluído; falha do espelho de configurações não desfaz a configuração válida. 56 testes Node, 3 Python e 39 verificações reais. Resultados completos e limites em `PERFORMANCE-2026-11-12.md`.
+
+Terceira etapa de memória: índice de diagnóstico conserva origens compactadas e reconstrói textos sob demanda; regras e dicionário são lidos de uma geração consistente. Mais 7–11 MiB de RSS economizados contra o build anterior, com menor CPU/load que uBO na fixture. Resultados e limites em `MEMORY-THIRD-2026-11-12.md`.
+
+Segunda etapa de memória: comparação de regras sem grandes textos temporários e proveniência compactada sem perda de filtros ou diagnóstico. Mais 54–55 MiB de RSS economizados contra o build anterior, mantendo menor CPU/load que uBO na fixture. Diferença de RAM ainda em 40–44 MiB. Resultados em `MEMORY-SECOND-2026-11-12.md`.
+
+Otimização de memória: snapshots compartilham filtros imutáveis, gravações do índice limitadas a 32 requisições pendentes e alteração do agendamento sem recarregar listas. Migração e rollback preservados. RSS total 6,6–8,0% menor que o build anterior, com vantagem de velocidade sobre uBO na fixture; resultados em `MEMORY-2026-11-12.md`.
+
+Seletor de elementos com prévia e persistência por domínio; atualização automática configurável e baseada na idade das listas; reutilização de compilação/índices; correções de concorrência e identidade de documentos; suporte conservador a denyallow, placeholders e hostnames simples; README em três idiomas; distribuição sem fontes ou Firefox sem assinatura. Auditoria em `AUDIT-0.3.0.md`.
+
 # 0.2.1
 
 - Recuperação adicional no player do YouTube para anúncios que escapam dos filtros: botão de pular visível primeiro, avanço limitado da mídia apenas com estado de anúncio e sinais visuais corroborando. Sem alteração de velocidade, volume ou autoplay.

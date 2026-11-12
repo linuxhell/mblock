@@ -2,7 +2,6 @@
 // Portuguese source text, English, Simplified Chinese. Diagnostic field IDs stay stable.
 export const STRINGS = [
 ['mBlock · Painel','mBlock · Dashboard','mBlock · 控制面板'],
-['ALFA 0.1','ALPHA 0.1','测试版 0.1'],
 ['Proteção sob seu controle','Protection under your control','由您掌控的保护'],
 ['Carregando…','Loading…','正在加载…'],
 ['Alternar proteção global','Toggle global protection','切换全局保护'],
@@ -24,7 +23,7 @@ export const STRINGS = [
 ['disponíveis','available','可用'],
 ['filtros de rede após deduplicação','network filters after deduplication','去重后的网络过滤规则'],
 ['seletores disponíveis por domínio','selectors available by domain','按域名提供的选择器'],
-['Versão experimental. O compilador aceita parte da sintaxe das listas. Veja as regras não suportadas abaixo. Desempenho superior ao uBlock Origin e invisibilidade a sites ainda não foram demonstrados.','Experimental version. The compiler supports part of the filter-list syntax. See unsupported rules below. Better performance than uBlock Origin and invisibility to sites have not been demonstrated.','实验版本。编译器仅支持部分过滤列表语法。不支持的规则见下文。尚未证实其性能优于 uBlock Origin，也无法保证不被网站检测。'],
+['O compilador aceita parte da sintaxe das listas. Veja as regras não suportadas abaixo. Desempenho superior ao uBlock Origin e invisibilidade a sites ainda não foram demonstrados.','The compiler supports part of the filter-list syntax. See unsupported rules below. Better performance than uBlock Origin and invisibility to sites have not been demonstrated.','编译器仅支持部分过滤列表语法。不支持的规则见下文。尚未证实其性能优于 uBlock Origin，也无法保证不被网站检测。'],
 ['Preferências','Preferences','首选项'],
 ['Ativar proteção','Enable protection','启用保护'],
 ['Atualizar filtros automaticamente a cada 12 horas','Update filters automatically every 12 hours','每 12 小时自动更新过滤规则'],
@@ -77,7 +76,7 @@ export const STRINGS = [
 ['EasyList · anúncios','EasyList · ads','EasyList · 广告'],['EasyPrivacy · rastreamento','EasyPrivacy · tracking','EasyPrivacy · 跟踪'],['uBlock · privacidade','uBlock · privacy','uBlock · 隐私'],['uBlock · compatibilidade','uBlock · compatibility','uBlock · 兼容性'],['uBlock · correções rápidas','uBlock · quick fixes','uBlock · 快速修复'],['uBlock · sites maliciosos','uBlock · badware','uBlock · 恶意网站'],['AdGuard · português (opcional)','AdGuard · Portuguese (optional)','AdGuard · 葡萄牙语（可选）'],['HaGeZi Multi PRO · domínios (opcional)','HaGeZi Multi PRO · domains (optional)','HaGeZi Multi PRO · 域名（可选）'],
 ['A extensão não respondeu.','The extension did not respond.','扩展未响应。'],['Operação permitida apenas no painel da extensão.','This operation is only allowed from the extension dashboard.','仅允许从扩展控制面板执行此操作。'],['Limite de regras dinâmicas excedido; configuração anterior mantida.','Dynamic rule limit exceeded; previous configuration retained.','超出动态规则上限；已保留上一配置。'],['Limite de regras de redirecionamento excedido.','Redirect rule limit exceeded.','超出重定向规则上限。'],['Falha na restauração. Reinicie a extensão para recuperar a transação.','Restore failed. Restart the extension to recover the transaction.','恢复失败。请重启扩展以恢复事务。'],['Uma atualização já está em andamento.','An update is already in progress.','更新已在进行中。'],['Abra um site HTTP/HTTPS.','Open an HTTP/HTTPS site.','请打开 HTTP/HTTPS 网站。'],['Domínio inválido.','Invalid domain.','域名无效。'],['Limite de 80 sites personalizados.','Maximum of 80 custom site profiles.','最多可自定义 80 个网站配置。'],['Fonte inválida.','Invalid source.','来源无效。'],['Regras pessoais excedem 100 KB.','Personal rules exceed 100 KB.','个人规则超过 100 KB。'],['Ainda não há versão anterior.','No previous version is available yet.','尚无可用的上一版本。'],['Use URLs HTTP/HTTPS válidas.','Use valid HTTP/HTTPS URLs.','请使用有效的 HTTP/HTTPS 网址。'],['Simulação nativa indisponível neste navegador.','Native simulation is unavailable in this browser.','此浏览器不支持原生模拟。'],['Limite de seletores excedido; configuração anterior mantida.','Selector limit exceeded; previous configuration retained.','超出选择器上限；已保留上一配置。'],
 ['Assistente local de anti-adblock','Local anti-adblock assistant','本地反广告拦截检测助手'],['Analisar mecanismo','Analyze mechanism','分析机制'],['Análise sob demanda por sinais técnicos. Identificações e propostas têm grau de confiança; um mecanismo desconhecido não recebe correção automática.','On-demand analysis of technical signals. Identifications and proposals have confidence levels; unknown mechanisms are not fixed automatically.','按需分析技术信号。识别与建议附带置信度；不会自动修复未知机制。'],['Nenhuma análise ainda.','No analysis yet.','尚未进行分析。'],['Análise concluída.','Analysis complete.','分析完成。'],['Ativar correção conhecida','Enable known fix','启用已知修复'],['Correção conhecida ativada. Recarregue a aba e repita o diagnóstico.','Known fix enabled. Reload the tab and repeat diagnostics.','已启用已知修复。请重新加载标签页并重新诊断。'],
-["ALFA 0.2.1","ALPHA 0.2.1","测试版 0.2.1"],
+["0.3.0","0.3.0","0.3.0"],
 ["Bloqueio avançado no YouTube","Advanced YouTube blocking","YouTube 高级拦截"],
 ["Perfil do YouTube: {count} filtros avançados. Recarregue as abas do YouTube após alterar esta opção.","YouTube profile: {count} advanced filters. Reload YouTube tabs after changing this option.","YouTube 配置：{count} 条高级规则。更改此选项后，请重新加载 YouTube 标签页。"],
 ["Avançados empacotados","Packaged advanced filters","内置高级规则"],
@@ -146,7 +145,20 @@ export const STRINGS = [
 ["O site demorou para responder. Recarregue a aba e tente novamente.", "The site took too long to respond. Reload the tab and try again.", "网站响应超时。请重新加载标签页后重试。"],
 ["Duração de diagnóstico inválida.", "Invalid diagnostic duration.", "诊断时长无效。"],
 ["Reative a proteção neste site antes de aplicar a correção.", "Enable protection on this site before applying the fix.", "应用修复前，请先启用此网站的保护。"],
-["A proteção está pausada. Reative-a para usar a correção.", "Protection is paused. Enable it to use the fix.", "保护已暂停。请启用保护以使用修复。"]
+["A proteção está pausada. Reative-a para usar a correção.", "Protection is paused. Enable it to use the fix.", "保护已暂停。请启用保护以使用修复。"],
+["Bloquear elemento", "Block element", "屏蔽元素"],
+["Clique no elemento. Confira a prévia e salve. Esc cancela.", "Click an element. Check the preview and save. Esc cancels.", "点击元素，检查预览并保存。按 Esc 取消。"],
+["Prévia", "Preview", "预览"],
+["Salvar regra", "Save filter", "保存规则"],
+["Escolher outro", "Pick another", "重新选择"],
+["Cancelar", "Cancel", "取消"],
+["Não foi possível salvar.", "Could not save.", "无法保存。"],
+["Atualizar filtros automaticamente", "Update filters automatically", "自动更新过滤列表"],
+["Intervalo de atualização", "Update interval", "更新间隔"],
+["Intervalo de atualização inválido.", "Invalid update interval.", "更新间隔无效。"],
+["Seleção expirada. Abra o bloqueador de elementos novamente.", "Selection expired. Open the element picker again.", "选择已过期，请重新打开元素选择器。"],
+["Seletor inválido.", "Invalid selector.", "选择器无效。"],
+["Ative a proteção e a ocultação por CSS neste site.", "Enable protection and CSS hiding on this site.", "请启用此网站的保护和 CSS 隐藏。"]
 ];
 export const LOCALES = { en: 'en-US', pt_BR: 'pt-BR', zh_CN: 'zh-CN' };
 const TEMPLATES = STRINGS.filter(row => /\{\w+\}/.test(row[0])).map(row => {

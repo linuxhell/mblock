@@ -18,15 +18,32 @@ const summaries = {};
 for (const target of ['chrome', 'edge', 'firefox']) {
   const dir = 'dist/' + target; await rm(dir, { recursive: true, force: true }); await cp('src', dir, { recursive: true }); await mkdir(dir + '/data', { recursive: true });
   await writeFile(dir + '/shared/platform.js', '// SPDX-License-Identifier: GPL-3.0-only\nexport const BUILD_TARGET = ' + JSON.stringify(target) + ';\n');
-  for (const [language, index, description] of [['pt_BR',0,'Bloqueio experimental de anúncios e rastreadores, com diagnóstico local e controle por site.'],['en',1,'Experimental ad and tracker blocking, with local diagnostics and per-site control.'],['zh_CN',2,'实验性广告和跟踪器拦截，提供本地诊断与按网站控制。']]) {
+  for (const [language, index, description] of [['pt_BR',0,'Bloqueio de anúncios e rastreadores, com diagnóstico local e controle por site.'],['en',1,'Ad and tracker blocking, with local diagnostics and per-site control.'],['zh_CN',2,'广告和跟踪器拦截，提供本地诊断与按网站控制。']]) {
     const messages = { extensionName: { message: 'mBlock' }, extensionDescription: { message: description } };
     STRINGS.forEach((row, i) => { messages['ui_' + i] = { message: row[index].replaceAll('$','$$') }; });
     await mkdir(`${dir}/_locales/${language}`,{recursive:true});await writeFile(`${dir}/_locales/${language}/messages.json`,JSON.stringify(messages,null,2)+'\n');
   }
   const profile = await buildYouTube(texts, target, dir);
   const compiled = compileLists(texts, { target, maxRules: 29800, packagedFilters: profile.rules });
-  const bootstrap = [{ id: 1, priority: 10, action: { type: 'block' }, condition: { requestDomains: ['doubleclick.net', 'googlesyndication.com', 'adnxs.com', 'adsrvr.org', 'popads.net'], excludedResourceTypes: ['main_frame'] } }, ...builtInRules({}).map((r, i) => ({ ...r, id: i + 2 }))];
+  // Full native protection is available before the worker finishes first-install
+  // initialization. Disable this static snapshot only after dynamic activation.
+  const bootstrap = [...compiled.rules, ...builtInRules({})].map((rule, i) => ({ ...rule, id:i + 1 }));
+  const bootstrapResources = []; let bootChunk = [], bootBytes = 2;
+  async function flushBootstrap() {
+    if (!bootChunk.length) return;
+    const id = 'bootstrap-' + bootstrapResources.length, path = 'data/' + id + '.json';
+    await writeFile(dir + '/' + path, '[' + bootChunk.join(',') + ']');
+    bootstrapResources.push({id,enabled:true,path}); bootChunk = []; bootBytes = 2;
+  }
+  for (const rule of bootstrap) {
+    const encoded = JSON.stringify(rule), bytes = Buffer.byteLength(encoded) + 1;
+    if (bytes > 3500000) throw new Error('Regra de bootstrap excede o limite de distribuição.');
+    if (bootBytes + bytes > 3500000) await flushBootstrap();
+    bootChunk.push(encoded); bootBytes += bytes;
+  }
+  await flushBootstrap();
   const manifest = { ...common, background: target === 'firefox' ? { scripts: ['background.js'], type: 'module' } : { service_worker: 'background.js', type: 'module' } };
+  manifest.declarative_net_request = {rule_resources:bootstrapResources};
   if (target === 'firefox') manifest.browser_specific_settings = { gecko: { id: 'mblock@linuxhell.github.io', strict_min_version: '142.0', data_collection_permissions: { required: ['none'] } } };
   else manifest.minimum_chrome_version = '121';
   await writeFile(dir + '/manifest.json', JSON.stringify(manifest, null, 2) + '\n');
@@ -45,7 +62,6 @@ for (const target of ['chrome', 'edge', 'firefox']) {
   }
   const { rules, provenance, cosmetics, ...smallCompiled } = compiled;
   await writeFile(dir + '/data/default.json', JSON.stringify({ compiled: smallCompiled, parts, texts: textIndex, sources }));
-  await writeFile(dir + '/data/bootstrap.json', JSON.stringify(bootstrap));
   await cp('LICENSE', dir + '/LICENSE'); await cp('THIRD_PARTY_NOTICES.md', dir + '/THIRD_PARTY_NOTICES.md');
   summaries[target] = { ...compiled.stats, bundledRules: bootstrap.length, youtubeScriptlets: profile.count, youtubeProfileHash: profile.hash };
   console.log(target + ': ' + JSON.stringify(summaries[target]));

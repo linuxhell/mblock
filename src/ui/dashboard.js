@@ -47,6 +47,7 @@ async function refresh() {
   $('#engine').textContent = state.target + ' · Manifest V3';
   $('#updated').textContent = t('Configuração instalada: {time}', { time: time(state.metadata?.at) });
   $('#enabled').checked = state.settings.enabled; $('#automatic').checked = state.settings.autoUpdate; $('#generic').checked = state.settings.genericCosmetic; $('#fixes').checked = state.settings.fixes !== false;
+  $('#update-interval').value = String(state.settings.intervalHours);
   $('#youtube').checked = state.settings.youtube !== false;
   $('#youtube-profile').textContent = t('Perfil do YouTube: {count} filtros avançados. Recarregue as abas do YouTube após alterar esta opção.', {count:number(state.youtubeProfile?.count)});
   $('#custom').value = state.settings.customRules; setDisabled($('#rollback'), !state.metadata?.hasPrevious);
@@ -75,7 +76,7 @@ function renderLogs() {
   }
 }
 async function refreshLogs() { logs = await call('logs'); renderLogs(); }
-bind('#save-settings', async () => { status('Aplicando preferências…'); await call('settings', { patch: { enabled: $('#enabled').checked, autoUpdate: $('#automatic').checked, genericCosmetic: $('#generic').checked, fixes: $('#fixes').checked, youtube: $('#youtube').checked } }); await refresh(); status('Preferências salvas. Recarregue as páginas abertas.'); });
+bind('#save-settings', async () => { status('Aplicando preferências…'); await call('settings', { patch: { enabled: $('#enabled').checked, autoUpdate: $('#automatic').checked, intervalHours: Number($('#update-interval').value), genericCosmetic: $('#generic').checked, fixes: $('#fixes').checked, youtube: $('#youtube').checked } }); await refresh(); status('Preferências salvas. Recarregue as páginas abertas.'); });
 bind('#update', async () => { status('Baixando e validando as listas…'); await call('update'); await refresh(); await refreshLogs(); status('Atualização concluída.'); });
 bind('#rollback', async () => { await call('rollback'); await refresh(); status('Configuração anterior restaurada. Recarregue os sites.'); });
 bind('#save-sources', async () => { status('Validando seleção e baixando listas novas…'); const ids = [...document.querySelectorAll('[data-source]:checked')].map(x => x.dataset.source); await call('settings', { patch: { sourceIds: ids } }); await refresh(); status('Listas salvas.'); });

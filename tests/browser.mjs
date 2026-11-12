@@ -26,20 +26,31 @@ try {
  };
  const state = await call('state'); assert.ok(state.metadata.stats.nativeRules>15000); passed.push('full bundled rules installed and bootstrap disabled');
  assert.deepEqual(await worker.evaluate(()=>chrome.declarativeNetRequest.getEnabledRulesets()),[]);
+ const compactIndex=await worker.evaluate(async()=>{
+  const db=await new Promise((resolve,reject)=>{const r=indexedDB.open('mblock-v1',1);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});
+  const read=(store,key)=>new Promise((resolve,reject)=>{const r=db.transaction(store).objectStore(store).get(key);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});
+  const record=await read('rules',1),encoding=await read('meta','ruleProvenanceEncoding');db.close();
+  return {compact:Array.isArray(record.originRow),expanded:record.origins!==undefined,version:encoding?.version};
+ });
+ assert.deepEqual(compactIndex,{compact:true,expanded:false,version:1});
+ const decodedRule=await call('explain_rule',{id:1});assert.ok(decodedRule.origins.length);assert.ok(decodedRule.origins.every(o=>typeof o.source==='string'&&typeof o.filter==='string'));
+ passed.push('compact diagnostic index expands original filter evidence on demand');
+
  // Re-open a legacy-shaped persisted snapshot to exercise the upgrade path.
  await call('settings',{patch:{autoUpdate:false,customRules:'||migration-preserved.example^\n'}});
  await call('site_policy',{host:'migration.example',policy:{paused:true}});
  await worker.evaluate(async()=>{
    const database=await new Promise((resolve,reject)=>{const r=indexedDB.open('mblock-v1',1);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});
-   await new Promise((resolve,reject)=>{const tx=database.transaction(['meta','snapshots'],'readwrite');for(const name of ['meta','snapshots']){const store=tx.objectStore(name),r=store.get('active');r.onsuccess=()=>{const value=r.result;delete value.engineVersion;delete value.settings.youtube;store.put(value,'active')}}tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)});database.close();
+   await new Promise((resolve,reject)=>{const tx=database.transaction(['meta','snapshots'],'readwrite');for(const name of ['meta','snapshots']){const store=tx.objectStore(name),r=store.get('active');r.onsuccess=()=>{const value=r.result;delete value.engineVersion;delete value.settings.youtube;store.put(value,'active');if(name==='snapshots')tx.objectStore('meta').put(value,'pending')}}tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)});database.close();
  });
  await context.close();context=await chromium.launchPersistentContext(profile,launchOptions);
  context.on('serviceworker',w=>w.on('console',m=>{if(m.type()==='error')errors.push(m.text());}));
  dashboard=await context.newPage();await dashboard.goto('chrome-extension://'+id+'/ui/dashboard.html');worker=context.serviceWorkers()[0]||await context.waitForEvent('serviceworker',{timeout:60000});
- const migrated=await call('state');assert.equal(migrated.metadata.engineVersion,'0.2.1');assert.equal(migrated.settings.customRules,'||migration-preserved.example^\n');assert.equal(migrated.settings.sites['migration.example'].paused,true);assert.equal(migrated.settings.youtube,true);assert.ok((await call('logs')).entries.some(e=>e.type==='engine_upgraded'));passed.push('legacy 0.1 snapshot upgrades without losing personal filters or site policies');
- for(const [language,tag,label] of [['pt_BR','pt-BR','Doar via PayPal'],['zh_CN','zh-CN','通过 PayPal 捐赠'],['en','en-US','Donate with PayPal']]){
+ const migrated=await call('state');assert.equal(migrated.metadata.engineVersion,'0.3.0');assert.equal(migrated.settings.customRules,'||migration-preserved.example^\n');assert.equal(migrated.settings.sites['migration.example'].paused,true);assert.equal(migrated.settings.youtube,true);assert.ok((await call('logs')).entries.some(e=>e.type==='engine_upgraded'));assert.ok((await call('logs')).entries.some(e=>e.type==='transaction_recovered'));passed.push('legacy snapshot and pending transaction recover without losing personal filters or site policies');
+ for(const [language,tag,label,placeholder] of [['pt_BR','pt-BR','Doar via PayPal','Nenhuma análise ainda.'],['zh_CN','zh-CN','通过 PayPal 捐赠','尚未进行分析。'],['en','en-US','Donate with PayPal','No analysis yet.']]){
    await dashboard.locator('[data-language]').selectOption(language);
    await dashboard.waitForFunction(({tag,label})=>document.documentElement.lang===tag&&document.querySelector('[data-donate]')?.textContent===label,{tag,label});
+   assert.equal(await dashboard.locator('#assistant-result').textContent(),placeholder);
    const donation=new URL(await dashboard.locator('[data-donate]').getAttribute('href'));
    assert.equal(donation.hostname,'www.paypal.com');assert.equal(donation.searchParams.get('business'),'jv12802@gmail.com');
  }
@@ -50,6 +61,45 @@ try {
  await site.waitForFunction(()=>getComputedStyle(document.querySelector('.mblock-sponsored')).display==='none');
  assert.equal(await site.evaluate(()=>!!window.adResourceLoaded),false); passed.push('native blocking + scoped cosmetics, essential script preserved');
  const tabId=await worker.evaluate(async url=>(await chrome.tabs.query({})).find(t=>t.url===url).id,site.url());
+ await worker.evaluate(()=>{globalThis.__cosmeticReads=0;globalThis.__transactionOriginal=IDBDatabase.prototype.transaction;IDBDatabase.prototype.transaction=function(stores,...args){if((Array.isArray(stores)?stores:[stores]).includes('cosmetics'))globalThis.__cosmeticReads++;return globalThis.__transactionOriginal.call(this,stores,...args)}});
+ await site.reload();await site.waitForFunction(()=>getComputedStyle(document.querySelector('.mblock-sponsored')).display==='none');
+ const cosmeticReads=await worker.evaluate(()=>globalThis.__cosmeticReads);
+ await site.reload();await site.waitForFunction(()=>getComputedStyle(document.querySelector('.mblock-sponsored')).display==='none');
+ assert.equal(await worker.evaluate(()=>globalThis.__cosmeticReads),cosmeticReads);
+ await worker.evaluate(()=>{IDBDatabase.prototype.transaction=globalThis.__transactionOriginal;delete globalThis.__transactionOriginal;delete globalThis.__cosmeticReads});
+ passed.push('warm host CSS cache avoids repeated cosmetic transactions and still hides ads');
+
+
+ // Alarm changes and two concurrent site edits must both survive serialization.
+ await call('settings',{patch:{autoUpdate:true,intervalHours:6}});
+ assert.equal((await worker.evaluate(()=>chrome.alarms.get('update'))).periodInMinutes,360);
+ await assert.rejects(()=>call('settings',{patch:{intervalHours:0}}),/Intervalo/);
+ await Promise.all([call('site_policy',{host:'a.mblock.test',policy:{paused:true}}),call('site_policy',{host:'b.mblock.test',policy:{generic:true}})]);
+ const concurrent=(await call('state')).settings.sites;assert.equal(concurrent['a.mblock.test'].paused,true);assert.equal(concurrent['b.mblock.test'].generic,true);
+ await call('settings',{patch:{autoUpdate:false}});assert.equal(await worker.evaluate(()=>chrome.alarms.get('update')),undefined);
+ passed.push('configurable update alarm and concurrent site policies preserve both edits');
+ const labels={title:'Block element',instruction:'Choose an element',preview:'Preview',save:'Save filter',again:'Pick another',cancel:'Cancel',failed:'Could not save'};
+ const pickerCDP=await context.newCDPSession(site);
+ async function pickerButton(text) {
+  const {root}=await pickerCDP.send('DOM.getDocument',{depth:-1,pierce:true});
+  function find(n){if(n.nodeName==='BUTTON' && n.children?.some(c=>c.nodeValue===text))return n;for(const child of [...(n.children||[]),...(n.shadowRoots||[])]){const match=find(child);if(match)return match;}}
+  const n=find(root);assert.ok(n,'picker button '+text);const {model}=await pickerCDP.send('DOM.getBoxModel',{backendNodeId:n.backendNodeId});
+  const q=model.border;await site.mouse.click((q[0]+q[4])/2,(q[1]+q[5])/2);
+ }
+ await call('picker_start',{tabId,labels});
+ await site.locator('h1').click();await site.screenshot({path:'test-results/element-picker.png'});await pickerButton('Preview');assert.equal(await site.locator('h1').isVisible(),false);
+ await pickerButton('Cancel');assert.equal(await site.locator('h1').isVisible(),true);
+ assert.ok(!(await call('state')).settings.customRules.includes('##h1'));
+ await call('picker_start',{tabId,labels});await site.locator('h1').click();await pickerButton('Save filter');
+ await site.waitForFunction(()=>getComputedStyle(document.querySelector('h1')).display==='none');
+ assert.ok((await call('state')).settings.customRules.includes('127.0.0.1##h1'));
+ await site.reload();await site.waitForFunction(()=>getComputedStyle(document.querySelector('h1')).display==='none');
+ // A forged save without a UI-created capability must not change filters.
+ const forged=await worker.evaluate(async tabId=>{const r=await chrome.scripting.executeScript({target:{tabId},func:async()=>chrome.runtime.sendMessage({type:'picker_save',token:'forged',selector:'body'})});return r[0].result;},tabId);
+ assert.equal(forged.ok,false);
+ const afterPicker=(await call('state')).settings.customRules;
+ await call('settings',{patch:{customRules:afterPicker.replace('127.0.0.1##h1\n','')}});await site.reload();await site.waitForFunction(()=>getComputedStyle(document.querySelector('h1')).display!=='none');
+ passed.push('element picker previews, cancels, persists on reload and rejects forged saves');
  await dashboard.locator('#refresh-tabs').click();await dashboard.locator('#tab').selectOption(String(tabId));await dashboard.locator('#analyze').click();await dashboard.waitForFunction(()=>document.querySelector('#assistant-result').textContent.includes('mblock-site-analysis-v2'));
  assert.equal(await dashboard.locator('#apply-known-fix').isDisabled(),true);assert.equal(await dashboard.locator('#apply-known-fix').evaluate(e=>getComputedStyle(e).cursor),'default');assert.equal(await dashboard.locator('#apply-known-fix').getAttribute('aria-busy'),null);assert.match(await dashboard.locator('#known-fix-status').textContent(),/No known fix/);passed.push('unavailable known fix explains why and uses a normal cursor after analysis');
  await worker.evaluate(()=>{globalThis.__executeOriginal=chrome.scripting.executeScript;chrome.scripting.executeScript=options=>options.func?.name==='probeSite'?new Promise(()=>{}):globalThis.__executeOriginal(options);});
@@ -61,17 +111,57 @@ try {
  await call('site_policy',{host:'127.0.0.1',policy:{paused:false}});await site.reload();await site.waitForFunction(()=>window.essentialLoaded===true);assert.equal(await site.evaluate(()=>!!window.adResourceLoaded),false);
  await call('settings',{patch:{enabled:false}});await site.reload();await site.waitForFunction(()=>window.adResourceLoaded===true);passed.push('global pause works');
  await call('settings',{patch:{enabled:true}});
+
+ const controlProbe=await worker.evaluate(async()=>{
+  const database=await new Promise((resolve,reject)=>{const r=indexedDB.open('mblock-v1',1);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});
+  const tx=database.transaction(['snapshots','meta']),active=tx.objectStore('snapshots').get('active'),meta=tx.objectStore('meta').get('active');
+  await new Promise((resolve,reject)=>{tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)});database.close();
+  globalThis.__controlChanges=[];globalThis.__controlOriginal=chrome.declarativeNetRequest.updateDynamicRules;
+  chrome.declarativeNetRequest.updateDynamicRules=async change=>{globalThis.__controlChanges.push(change);return globalThis.__controlOriginal(change)};
+  return {base:meta.result.stats.nativeRules-active.result.extraRules.length,dataKey:active.result.dataKey};
+ });
+ await call('settings',{patch:{enabled:false}});await call('settings',{patch:{enabled:true}});
+ const controlChanges=await worker.evaluate(()=>{chrome.declarativeNetRequest.updateDynamicRules=globalThis.__controlOriginal;delete globalThis.__controlOriginal;const changes=globalThis.__controlChanges;delete globalThis.__controlChanges;return changes});
+ assert.equal(controlChanges.length,2);assert.ok(controlChanges.every(c=>c.removeRuleIds.every(id=>id>controlProbe.base)&&c.addRules.every(r=>r.id>controlProbe.base)));
+ passed.push('control changes replace only local tail rules and preserve the compiled network index');
+ await worker.evaluate(()=>{globalThis.__storageOriginal=chrome.storage.local.set;chrome.storage.local.set=data=>data.settings?Promise.reject(Error('Simulated settings mirror failure')):globalThis.__storageOriginal(data)});
+ await call('settings',{patch:{enabled:false}});assert.equal((await call('state')).settings.enabled,false);
+ await site.reload();await site.waitForFunction(()=>window.adResourceLoaded===true);
+ await worker.evaluate(()=>{chrome.storage.local.set=globalThis.__storageOriginal;delete globalThis.__storageOriginal});
+ await call('settings',{patch:{enabled:true}});await site.reload();await site.waitForFunction(()=>window.essentialLoaded===true);assert.equal(await site.evaluate(()=>!!window.adResourceLoaded),false);
+ passed.push('settings mirror failure keeps committed native and persistent configuration consistent');
  const rulesBefore=await worker.evaluate(async()=>JSON.stringify(await chrome.declarativeNetRequest.getDynamicRules()));
  await worker.evaluate(()=>{globalThis.__originalFetch=fetch;globalThis.fetch=(url,options)=>String(url).startsWith('https://raw.githubusercontent.com/')?Promise.reject(new Error('Simulated offline update')):globalThis.__originalFetch(url,options);});
  await assert.rejects(()=>call('update'),/Simulated offline/);
  assert.equal(await worker.evaluate(async()=>JSON.stringify(await chrome.declarativeNetRequest.getDynamicRules())),rulesBefore);
  await worker.evaluate(()=>{globalThis.fetch=globalThis.__originalFetch;delete globalThis.__originalFetch;});passed.push('failed update retains previous native rules');
  await worker.evaluate(()=>{globalThis.__updateOriginal=chrome.declarativeNetRequest.updateDynamicRules;chrome.declarativeNetRequest.updateDynamicRules=async()=>{throw Error('Simulated native validation failure')};});
- await assert.rejects(()=>call('settings',{patch:{genericCosmetic:true}}),/Simulated native validation/);
+ await call('settings',{patch:{genericCosmetic:true}});
+ assert.equal((await call('state')).settings.genericCosmetic,true);
+ passed.push('CSS preference changes skip native rule replacement');
+ await assert.rejects(()=>call('settings',{patch:{enabled:false}}),/Simulated native validation/);
  await worker.evaluate(()=>{chrome.declarativeNetRequest.updateDynamicRules=globalThis.__updateOriginal;delete globalThis.__updateOriginal;});
- assert.equal((await call('state')).settings.genericCosmetic,false);
+ assert.equal((await call('state')).settings.enabled,true);
+ await call('settings',{patch:{genericCosmetic:false}});
  assert.equal(await worker.evaluate(async()=>JSON.stringify(await chrome.declarativeNetRequest.getDynamicRules())),rulesBefore);passed.push('atomic native rejection leaves settings and rules unchanged');
  await call('settings',{patch:{genericCosmetic:true}});await call('rollback');assert.equal((await call('state')).settings.genericCosmetic,false);passed.push('rollback restores previous settings and rules');
+
+ const storageLayout=await worker.evaluate(async()=>{
+  const database=await new Promise((resolve,reject)=>{const r=indexedDB.open('mblock-v1',1);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});
+  const read=(store,key)=>new Promise((resolve,reject)=>{const r=database.transaction(store).objectStore(store).get(key);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});
+  const active=await read('snapshots','active'),previous=await read('snapshots','previous');
+  const keys=await new Promise((resolve,reject)=>{const r=database.transaction('snapshots').objectStore('snapshots').getAllKeys();r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});
+  const dataKeys=keys.filter(k=>String(k).startsWith('data:'));
+  const shared=active.dataKey===previous.dataKey;
+  // Recreate a real legacy full snapshot, as produced by 0.2.x/early 0.3.0.
+  const data=await read('snapshots',active.dataKey),{storageFormat,dataKey,extraRules,...configuration}=active;
+  await new Promise((resolve,reject)=>{const tx=database.transaction('snapshots','readwrite');tx.objectStore('snapshots').put({...configuration,...data,rules:[...data.compiled.rules,...extraRules]},'active');tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)});
+  database.close();return{format:active.storageFormat,shared,dataKeys:dataKeys.length};
+ });
+ assert.deepEqual(storageLayout,{format:'shared-v1',shared:true,dataKeys:1});
+ // The next preference write must read legacy data, normalize it and preserve rollback.
+ await call('settings',{patch:{genericCosmetic:true}});await call('rollback');assert.equal((await call('state')).settings.genericCosmetic,false);
+ passed.push('shared snapshots avoid duplicate payloads, collect unused data and accept legacy snapshots');
  await site.reload();await site.waitForFunction(()=>window.essentialLoaded===true);await site.waitForTimeout(200);
  const report=await call('export');assert.equal(report.schema,'mblock-diagnostic-v1');assert.ok(report.matchedRules.some(r=>r.origins?.length));assert.ok(report.matchedRules.some(r=>r.available===false));assert.equal(report.metadata.settings,undefined);assert.equal(report.privacy.queryValues,false);passed.push('diagnostic provenance is tied to the matching ruleset generation');
  await call('diagnostic_stop');assert.equal((await call('state')).activeDiagnostic,null);

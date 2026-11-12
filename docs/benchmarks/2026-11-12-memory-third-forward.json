@@ -1,0 +1,706 @@
+{
+  "at": "2026-11-12T16:15:32.613Z",
+  "order": [
+    "no-extension",
+    "mblock-before",
+    "mblock",
+    "external-baseline"
+  ],
+  "machine": {
+    "platform": "linux",
+    "cpu": "AMD EPYC 9V74 80-Core Processor",
+    "logicalCPUs": 4
+  },
+  "fixture": {
+    "runs": 7,
+    "adsPerPage": 60,
+    "cache": "no-store; one warm-up",
+    "note": "Synthetic local fixture; no live-site claim. Fresh default profiles; mBlock auto-updates disabled after initialization; uBO default bundled lists; subscriptions are not identical. Sequential scenarios can have order and background update bias."
+  },
+  "comparisonToUBlockOriginComplete": true,
+  "scope": "Single synthetic fixture only; not a general superiority test",
+  "baselineProvided": true,
+  "scenarios": [
+    {
+      "label": "no-extension",
+      "initializationAndWarmupMs": 1834.9,
+      "processes": [
+        {
+          "id": 3175,
+          "type": "browser",
+          "rssKiB": 187624
+        },
+        {
+          "id": 3256,
+          "type": "renderer",
+          "rssKiB": 67504
+        },
+        {
+          "id": 3237,
+          "type": "renderer",
+          "rssKiB": 131084
+        },
+        {
+          "id": 3238,
+          "type": "renderer",
+          "rssKiB": 99132
+        },
+        {
+          "id": 3203,
+          "type": "GPU",
+          "rssKiB": 79416
+        },
+        {
+          "id": 3216,
+          "type": "network.mojom.NetworkService",
+          "rssKiB": 110060
+        },
+        {
+          "id": 3217,
+          "type": "storage.mojom.StorageService",
+          "rssKiB": 49040
+        }
+      ],
+      "heaps": [],
+      "loadedTargets": [],
+      "extension": null,
+      "browser": "134.0.6998.35",
+      "samples": [
+        {
+          "navigationAndIdleMs": 577.81,
+          "cpuMs": 200,
+          "rssKiB": 712556,
+          "adRequestsReachedServer": 60,
+          "essential": true,
+          "adScriptsExecuted": 60,
+          "baitHidden": false,
+          "domContentLoadedMs": 17.800000000017462,
+          "loadMs": 74.20000000001164
+        },
+        {
+          "navigationAndIdleMs": 574.54,
+          "cpuMs": 200,
+          "rssKiB": 714820,
+          "adRequestsReachedServer": 60,
+          "essential": true,
+          "adScriptsExecuted": 60,
+          "baitHidden": false,
+          "domContentLoadedMs": 14.800000000017462,
+          "loadMs": 71.40000000002328
+        },
+        {
+          "navigationAndIdleMs": 570.61,
+          "cpuMs": 210,
+          "rssKiB": 717072,
+          "adRequestsReachedServer": 60,
+          "essential": true,
+          "adScriptsExecuted": 60,
+          "baitHidden": false,
+          "domContentLoadedMs": 17.10000000000582,
+          "loadMs": 67.80000000001746
+        },
+        {
+          "navigationAndIdleMs": 571.63,
+          "cpuMs": 200,
+          "rssKiB": 718640,
+          "adRequestsReachedServer": 60,
+          "essential": true,
+          "adScriptsExecuted": 60,
+          "baitHidden": false,
+          "domContentLoadedMs": 16.39999999999418,
+          "loadMs": 69.5
+        },
+        {
+          "navigationAndIdleMs": 574.17,
+          "cpuMs": 220,
+          "rssKiB": 720404,
+          "adRequestsReachedServer": 60,
+          "essential": true,
+          "adScriptsExecuted": 60,
+          "baitHidden": false,
+          "domContentLoadedMs": 14.89999999999418,
+          "loadMs": 71.09999999997672
+        },
+        {
+          "navigationAndIdleMs": 569.92,
+          "cpuMs": 230,
+          "rssKiB": 722304,
+          "adRequestsReachedServer": 60,
+          "essential": true,
+          "adScriptsExecuted": 60,
+          "baitHidden": false,
+          "domContentLoadedMs": 16,
+          "loadMs": 67
+        },
+        {
+          "navigationAndIdleMs": 567.36,
+          "cpuMs": 210,
+          "rssKiB": 723860,
+          "adRequestsReachedServer": 60,
+          "essential": true,
+          "adScriptsExecuted": 60,
+          "baitHidden": false,
+          "domContentLoadedMs": 20.300000000017462,
+          "loadMs": 65.60000000000582
+        }
+      ],
+      "median": {
+        "navigationAndIdleMs": 571.63,
+        "cpuMs": 210,
+        "rssKiB": 718640,
+        "loadMs": 69.5,
+        "adRequestsReachedServer": 60
+      }
+    },
+    {
+      "label": "mblock-before",
+      "initializationAndWarmupMs": 4431.62,
+      "configuration": {
+        "stats": {
+          "networkFilters": 116390,
+          "nativeRules": 19501,
+          "cosmetics": 29127,
+          "duplicates": 160,
+          "badfilters": 29,
+          "unsupported": 19972
+        },
+        "sourceHashes": [
+          {
+            "id": "easylist",
+            "sha256": "1b53494aa9938e0b99fecec1860e672d03518c04a22db0c51ed89211e4aa8709"
+          },
+          {
+            "id": "easyprivacy",
+            "sha256": "196b42268d22c4d1ceb04c9ee826259a7f4571d49aab392b5807902156520398"
+          },
+          {
+            "id": "ublock",
+            "sha256": "b3fde215561762a81903a615278b0abe56fd7bf5d09e69b62d3e1e0d6569a5ed"
+          },
+          {
+            "id": "privacy",
+            "sha256": "30ba27a561a46ed1de51e04e4b4c417e10c3755032bdc2e806cd5c9f8e6503a7"
+          },
+          {
+            "id": "unbreak",
+            "sha256": "0645b79f33dd0504a1e8c62c723dbb77edb82f2ae46b2a5edb88a9ea2bb8de24"
+          },
+          {
+            "id": "quick",
+            "sha256": "7bff2be1aed676a8ceb2208ce680367b86e10e579b4cbcc0a0f1003813dffc57"
+          },
+          {
+            "id": "badware",
+            "sha256": "d516b70fc637d828f7e1d86feff3412f57a4d5310f4b67285cff387ede205649"
+          }
+        ]
+      },
+      "processes": [
+        {
+          "id": 3290,
+          "type": "browser",
+          "rssKiB": 212936
+        },
+        {
+          "id": 3394,
+          "type": "renderer",
+          "rssKiB": 71900
+        },
+        {
+          "id": 3381,
+          "type": "renderer",
+          "rssKiB": 318460
+        },
+        {
+          "id": 3354,
+          "type": "renderer",
+          "rssKiB": 136876
+        },
+        {
+          "id": 3355,
+          "type": "renderer",
+          "rssKiB": 102500
+        },
+        {
+          "id": 3320,
+          "type": "GPU",
+          "rssKiB": 80044
+        },
+        {
+          "id": 3321,
+          "type": "network.mojom.NetworkService",
+          "rssKiB": 105588
+        },
+        {
+          "id": 3333,
+          "type": "storage.mojom.StorageService",
+          "rssKiB": 49244
+        }
+      ],
+      "heaps": [
+        {
+          "type": "service_worker",
+          "heap": {
+            "usedSize": 57066272,
+            "totalSize": 110583808,
+            "embedderHeapUsedSize": 24985672,
+            "backingStorageSize": 23910735
+          }
+        }
+      ],
+      "loadedTargets": [
+        {
+          "type": "service_worker",
+          "url": "chrome-extension://kkoeehkpnfacikhfjopbfgadjbdpdfpo/background.js"
+        }
+      ],
+      "extension": {
+        "name": "__MSG_extensionName__",
+        "version": "0.3.0",
+        "manifestVersion": 3
+      },
+      "browser": "134.0.6998.35",
+      "samples": [
+        {
+          "navigationAndIdleMs": 537.28,
+          "cpuMs": 100,
+          "rssKiB": 1069108,
+          "adRequestsReachedServer": 0,
+          "essential": true,
+          "adScriptsExecuted": 0,
+          "baitHidden": false,
+          "domContentLoadedMs": 16.699999999982538,
+          "loadMs": 32.10000000000582
+        },
+        {
+          "navigationAndIdleMs": 537.34,
+          "cpuMs": 110,
+          "rssKiB": 1070708,
+          "adRequestsReachedServer": 0,
+          "essential": true,
+          "adScriptsExecuted": 0,
+          "baitHidden": false,
+          "domContentLoadedMs": 18.29999999998836,
+          "loadMs": 32
+        },
+        {
+          "navigationAndIdleMs": 536.19,
+          "cpuMs": 100,
+          "rssKiB": 1071564,
+          "adRequestsReachedServer": 0,
+          "essential": true,
+          "adScriptsExecuted": 0,
+          "baitHidden": false,
+          "domContentLoadedMs": 17,
+          "loadMs": 30.900000000023283
+        },
+        {
+          "navigationAndIdleMs": 535.64,
+          "cpuMs": 120,
+          "rssKiB": 1073084,
+          "adRequestsReachedServer": 0,
+          "essential": true,
+          "adScriptsExecuted": 0,
+          "baitHidden": false,
+          "domContentLoadedMs": 21.599999999976717,
+          "loadMs": 32
+        },
+        {
+          "navigationAndIdleMs": 534.8,
+          "cpuMs": 110,
+          "rssKiB": 1075352,
+          "adRequestsReachedServer": 0,
+          "essential": true,
+          "adScriptsExecuted": 0,
+          "baitHidden": false,
+          "domContentLoadedMs": 17.79999999998836,
+          "loadMs": 30.29999999998836
+        },
+        {
+          "navigationAndIdleMs": 534.89,
+          "cpuMs": 80,
+          "rssKiB": 1076656,
+          "adRequestsReachedServer": 0,
+          "essential": true,
+          "adScriptsExecuted": 0,
+          "baitHidden": false,
+          "domContentLoadedMs": 18.900000000023283,
+          "loadMs": 31.5
+        },
+        {
+          "navigationAndIdleMs": 535.1,
+          "cpuMs": 100,
+          "rssKiB": 1077548,
+          "adRequestsReachedServer": 0,
+          "essential": true,
+          "adScriptsExecuted": 0,
+          "baitHidden": false,
+          "domContentLoadedMs": 20.5,
+          "loadMs": 31.20000000001164
+        }
+      ],
+      "median": {
+        "navigationAndIdleMs": 535.64,
+        "cpuMs": 100,
+        "rssKiB": 1073084,
+        "loadMs": 31.5,
+        "adRequestsReachedServer": 0
+      }
+    },
+    {
+      "label": "mblock",
+      "initializationAndWarmupMs": 4475.95,
+      "configuration": {
+        "stats": {
+          "networkFilters": 116390,
+          "nativeRules": 19501,
+          "cosmetics": 29127,
+          "duplicates": 160,
+          "badfilters": 29,
+          "unsupported": 19972
+        },
+        "sourceHashes": [
+          {
+            "id": "easylist",
+            "sha256": "1b53494aa9938e0b99fecec1860e672d03518c04a22db0c51ed89211e4aa8709"
+          },
+          {
+            "id": "easyprivacy",
+            "sha256": "196b42268d22c4d1ceb04c9ee826259a7f4571d49aab392b5807902156520398"
+          },
+          {
+            "id": "ublock",
+            "sha256": "b3fde215561762a81903a615278b0abe56fd7bf5d09e69b62d3e1e0d6569a5ed"
+          },
+          {
+            "id": "privacy",
+            "sha256": "30ba27a561a46ed1de51e04e4b4c417e10c3755032bdc2e806cd5c9f8e6503a7"
+          },
+          {
+            "id": "unbreak",
+            "sha256": "0645b79f33dd0504a1e8c62c723dbb77edb82f2ae46b2a5edb88a9ea2bb8de24"
+          },
+          {
+            "id": "quick",
+            "sha256": "7bff2be1aed676a8ceb2208ce680367b86e10e579b4cbcc0a0f1003813dffc57"
+          },
+          {
+            "id": "badware",
+            "sha256": "d516b70fc637d828f7e1d86feff3412f57a4d5310f4b67285cff387ede205649"
+          }
+        ]
+      },
+      "processes": [
+        {
+          "id": 3419,
+          "type": "browser",
+          "rssKiB": 213020
+        },
+        {
+          "id": 3520,
+          "type": "renderer",
+          "rssKiB": 73024
+        },
+        {
+          "id": 3513,
+          "type": "renderer",
+          "rssKiB": 312068
+        },
+        {
+          "id": 3481,
+          "type": "renderer",
+          "rssKiB": 135856
+        },
+        {
+          "id": 3482,
+          "type": "renderer",
+          "rssKiB": 102472
+        },
+        {
+          "id": 3448,
+          "type": "GPU",
+          "rssKiB": 79408
+        },
+        {
+          "id": 3451,
+          "type": "network.mojom.NetworkService",
+          "rssKiB": 105036
+        },
+        {
+          "id": 3463,
+          "type": "storage.mojom.StorageService",
+          "rssKiB": 49172
+        }
+      ],
+      "heaps": [
+        {
+          "type": "service_worker",
+          "heap": {
+            "usedSize": 44905268,
+            "totalSize": 110059520,
+            "embedderHeapUsedSize": 24985664,
+            "backingStorageSize": 23912271
+          }
+        }
+      ],
+      "loadedTargets": [
+        {
+          "type": "service_worker",
+          "url": "chrome-extension://cmnfpgdoooiiniijfdadfppekhgcmjnn/background.js"
+        }
+      ],
+      "extension": {
+        "name": "__MSG_extensionName__",
+        "version": "0.3.0",
+        "manifestVersion": 3
+      },
+      "browser": "134.0.6998.35",
+      "samples": [
+        {
+          "navigationAndIdleMs": 541.64,
+          "cpuMs": 100,
+          "rssKiB": 1061472,
+          "adRequestsReachedServer": 0,
+          "essential": true,
+          "adScriptsExecuted": 0,
+          "baitHidden": false,
+          "domContentLoadedMs": 24,
+          "loadMs": 35.89999999999418
+        },
+        {
+          "navigationAndIdleMs": 540.67,
+          "cpuMs": 120,
+          "rssKiB": 1063284,
+          "adRequestsReachedServer": 0,
+          "essential": true,
+          "adScriptsExecuted": 0,
+          "baitHidden": false,
+          "domContentLoadedMs": 23.5,
+          "loadMs": 33.69999999998254
+        },
+        {
+          "navigationAndIdleMs": 539.72,
+          "cpuMs": 80,
+          "rssKiB": 1064288,
+          "adRequestsReachedServer": 0,
+          "essential": true,
+          "adScriptsExecuted": 0,
+          "baitHidden": false,
+          "domContentLoadedMs": 28,
+          "loadMs": 35
+        },
+        {
+          "navigationAndIdleMs": 543.78,
+          "cpuMs": 110,
+          "rssKiB": 1065716,
+          "adRequestsReachedServer": 0,
+          "essential": true,
+          "adScriptsExecuted": 0,
+          "baitHidden": false,
+          "domContentLoadedMs": 25.70000000001164,
+          "loadMs": 38.89999999999418
+        },
+        {
+          "navigationAndIdleMs": 539.91,
+          "cpuMs": 100,
+          "rssKiB": 1067968,
+          "adRequestsReachedServer": 0,
+          "essential": true,
+          "adScriptsExecuted": 0,
+          "baitHidden": false,
+          "domContentLoadedMs": 18.79999999998836,
+          "loadMs": 35
+        },
+        {
+          "navigationAndIdleMs": 541.16,
+          "cpuMs": 90,
+          "rssKiB": 1068984,
+          "adRequestsReachedServer": 0,
+          "essential": true,
+          "adScriptsExecuted": 0,
+          "baitHidden": false,
+          "domContentLoadedMs": 19.300000000017462,
+          "loadMs": 37.30000000001746
+        },
+        {
+          "navigationAndIdleMs": 539.49,
+          "cpuMs": 110,
+          "rssKiB": 1070056,
+          "adRequestsReachedServer": 0,
+          "essential": true,
+          "adScriptsExecuted": 0,
+          "baitHidden": false,
+          "domContentLoadedMs": 20.5,
+          "loadMs": 33.89999999999418
+        }
+      ],
+      "median": {
+        "navigationAndIdleMs": 540.67,
+        "cpuMs": 100,
+        "rssKiB": 1065716,
+        "loadMs": 35,
+        "adRequestsReachedServer": 0
+      }
+    },
+    {
+      "label": "external-baseline",
+      "initializationAndWarmupMs": 11041.94,
+      "processes": [
+        {
+          "id": 3546,
+          "type": "browser",
+          "rssKiB": 200848
+        },
+        {
+          "id": 3647,
+          "type": "renderer",
+          "rssKiB": 72720
+        },
+        {
+          "id": 3625,
+          "type": "renderer",
+          "rssKiB": 281732
+        },
+        {
+          "id": 3624,
+          "type": "renderer",
+          "rssKiB": 152916
+        },
+        {
+          "id": 3607,
+          "type": "renderer",
+          "rssKiB": 102696
+        },
+        {
+          "id": 3571,
+          "type": "GPU",
+          "rssKiB": 78896
+        },
+        {
+          "id": 3575,
+          "type": "network.mojom.NetworkService",
+          "rssKiB": 117080
+        },
+        {
+          "id": 3588,
+          "type": "storage.mojom.StorageService",
+          "rssKiB": 49292
+        }
+      ],
+      "heaps": [
+        {
+          "type": "background_page",
+          "heap": {
+            "usedSize": 11799552,
+            "totalSize": 14524416,
+            "embedderHeapUsedSize": 614072,
+            "backingStorageSize": 122603259
+          }
+        }
+      ],
+      "loadedTargets": [
+        {
+          "type": "background_page",
+          "url": "chrome-extension://jppjkhgidndidkaanlajkpjdijkmgjpl/background.html"
+        }
+      ],
+      "extension": {
+        "name": "uBlock Origin",
+        "version": "1.76.0",
+        "manifestVersion": 2
+      },
+      "browser": "134.0.6998.35",
+      "samples": [
+        {
+          "navigationAndIdleMs": 545.75,
+          "cpuMs": 150,
+          "rssKiB": 1062724,
+          "adRequestsReachedServer": 0,
+          "essential": true,
+          "adScriptsExecuted": 0,
+          "baitHidden": false,
+          "domContentLoadedMs": 39.29999999998836,
+          "loadMs": 42.70000000001164
+        },
+        {
+          "navigationAndIdleMs": 541.31,
+          "cpuMs": 160,
+          "rssKiB": 1105012,
+          "adRequestsReachedServer": 0,
+          "essential": true,
+          "adScriptsExecuted": 0,
+          "baitHidden": false,
+          "domContentLoadedMs": 39.60000000000582,
+          "loadMs": 39.79999999998836
+        },
+        {
+          "navigationAndIdleMs": 740.85,
+          "cpuMs": 390,
+          "rssKiB": 976192,
+          "adRequestsReachedServer": 0,
+          "essential": true,
+          "adScriptsExecuted": 0,
+          "baitHidden": false,
+          "domContentLoadedMs": 240.29999999998836,
+          "loadMs": 240.60000000000582
+        },
+        {
+          "navigationAndIdleMs": 544.27,
+          "cpuMs": 270,
+          "rssKiB": 1038668,
+          "adRequestsReachedServer": 0,
+          "essential": true,
+          "adScriptsExecuted": 0,
+          "baitHidden": false,
+          "domContentLoadedMs": 23.599999999976717,
+          "loadMs": 42.19999999998254
+        },
+        {
+          "navigationAndIdleMs": 669.68,
+          "cpuMs": 340,
+          "rssKiB": 1063956,
+          "adRequestsReachedServer": 0,
+          "essential": true,
+          "adScriptsExecuted": 0,
+          "baitHidden": false,
+          "domContentLoadedMs": 168.89999999999418,
+          "loadMs": 169.09999999997672
+        },
+        {
+          "navigationAndIdleMs": 540.67,
+          "cpuMs": 230,
+          "rssKiB": 1114420,
+          "adRequestsReachedServer": 0,
+          "essential": true,
+          "adScriptsExecuted": 0,
+          "baitHidden": false,
+          "domContentLoadedMs": 38.40000000002328,
+          "loadMs": 38.70000000001164
+        },
+        {
+          "navigationAndIdleMs": 697.44,
+          "cpuMs": 390,
+          "rssKiB": 1055044,
+          "adRequestsReachedServer": 0,
+          "essential": true,
+          "adScriptsExecuted": 0,
+          "baitHidden": false,
+          "domContentLoadedMs": 198.10000000000582,
+          "loadMs": 198.30000000001746
+        }
+      ],
+      "median": {
+        "navigationAndIdleMs": 545.75,
+        "cpuMs": 270,
+        "rssKiB": 1062724,
+        "loadMs": 42.70000000001164,
+        "adRequestsReachedServer": 0
+      }
+    }
+  ],
+  "provenance": {
+    "commit": "47643533cb2b26a2c5f09bb7866bf149f843c422",
+    "previousCommit": "67a00f87782fd21ef41eee8bf03e173e1f2424ec",
+    "workflow": "https://github.com/linuxhell/mblock/actions/runs/43256310144"
+  }
+}

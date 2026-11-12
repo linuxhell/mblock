@@ -11,7 +11,7 @@ export async function initLocale() {
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT), nodes = [];
   while (walker.nextNode()) nodes.push(walker.currentNode);
   for (const node of nodes) {
-    if (['SCRIPT','STYLE','PRE','CODE'].includes(node.parentElement?.tagName)) continue;
+    if (['SCRIPT','STYLE','CODE'].includes(node.parentElement?.tagName)) continue;
     const text = node.textContent.trim(); if (text) node.textContent = node.textContent.replace(text, () => t(text));
   }
   for (const el of document.querySelectorAll('[placeholder],[aria-label],[title]')) for (const attr of ['placeholder','aria-label','title']) if (el.hasAttribute(attr)) el.setAttribute(attr,t(el.getAttribute(attr)));

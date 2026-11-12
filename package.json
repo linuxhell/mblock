@@ -1,9 +1,9 @@
 {
   "name": "mblock",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
-  "description": "Bloqueador experimental com regras nativas e diagnóstico local por site.",
+  "description": "Bloqueador com regras nativas, seleção de elementos e diagnóstico local por site.",
   "license": "GPL-3.0-only",
   "scripts": {
     "build": "node scripts/build.mjs",

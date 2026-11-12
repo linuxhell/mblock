@@ -1,0 +1,318 @@
+{
+  "at": "2026-11-12T14:03:04.668Z",
+  "machine": {
+    "platform": "linux",
+    "cpu": "AMD EPYC 9V74 80-Core Processor",
+    "logicalCPUs": 4
+  },
+  "fixture": {
+    "runs": 7,
+    "adsPerPage": 60,
+    "cache": "no-store; one warm-up",
+    "note": "Synthetic local fixture; no live-site claim. Fresh default profiles; mBlock auto-updates disabled after initialization; uBO default bundled lists; subscriptions are not identical. Sequential scenarios can have order and background update bias."
+  },
+  "comparisonToUBlockOriginComplete": true,
+  "scope": "Single synthetic fixture only; not a general superiority test",
+  "baselineProvided": true,
+  "scenarios": [
+    {
+      "label": "no-extension",
+      "loadedTargets": [],
+      "extension": null,
+      "browser": "134.0.6998.35",
+      "samples": [
+        {
+          "navigationAndIdleMs": 588.16,
+          "cpuMs": 240,
+          "rssKiB": 718708,
+          "adRequestsReachedServer": 60,
+          "essential": true,
+          "adScriptsExecuted": 60,
+          "baitHidden": false,
+          "domContentLoadedMs": 13.30000000000291,
+          "loadMs": 86
+        },
+        {
+          "navigationAndIdleMs": 586.8,
+          "cpuMs": 240,
+          "rssKiB": 721040,
+          "adRequestsReachedServer": 60,
+          "essential": true,
+          "adScriptsExecuted": 60,
+          "baitHidden": false,
+          "domContentLoadedMs": 12.5,
+          "loadMs": 84.39999999999418
+        },
+        {
+          "navigationAndIdleMs": 588.87,
+          "cpuMs": 240,
+          "rssKiB": 722976,
+          "adRequestsReachedServer": 60,
+          "essential": true,
+          "adScriptsExecuted": 60,
+          "baitHidden": false,
+          "domContentLoadedMs": 15,
+          "loadMs": 86.5
+        },
+        {
+          "navigationAndIdleMs": 586.49,
+          "cpuMs": 230,
+          "rssKiB": 724788,
+          "adRequestsReachedServer": 60,
+          "essential": true,
+          "adScriptsExecuted": 60,
+          "baitHidden": false,
+          "domContentLoadedMs": 12.700000000011642,
+          "loadMs": 83.20000000001164
+        },
+        {
+          "navigationAndIdleMs": 586.07,
+          "cpuMs": 220,
+          "rssKiB": 726528,
+          "adRequestsReachedServer": 60,
+          "essential": true,
+          "adScriptsExecuted": 60,
+          "baitHidden": false,
+          "domContentLoadedMs": 12.599999999991269,
+          "loadMs": 83.09999999999127
+        },
+        {
+          "navigationAndIdleMs": 588.09,
+          "cpuMs": 240,
+          "rssKiB": 728300,
+          "adRequestsReachedServer": 60,
+          "essential": true,
+          "adScriptsExecuted": 60,
+          "baitHidden": false,
+          "domContentLoadedMs": 12.599999999991269,
+          "loadMs": 86
+        },
+        {
+          "navigationAndIdleMs": 588.42,
+          "cpuMs": 220,
+          "rssKiB": 730156,
+          "adRequestsReachedServer": 60,
+          "essential": true,
+          "adScriptsExecuted": 60,
+          "baitHidden": false,
+          "domContentLoadedMs": 13.89999999999418,
+          "loadMs": 85.39999999999418
+        }
+      ],
+      "median": {
+        "navigationAndIdleMs": 588.09,
+        "cpuMs": 240,
+        "rssKiB": 724788,
+        "loadMs": 85.39999999999418,
+        "adRequestsReachedServer": 60
+      }
+    },
+    {
+      "label": "mblock",
+      "loadedTargets": [
+        {
+          "type": "service_worker",
+          "url": "chrome-extension://cmnfpgdoooiiniijfdadfppekhgcmjnn/background.js"
+        }
+      ],
+      "extension": {
+        "name": "__MSG_extensionName__",
+        "version": "0.3.0",
+        "manifestVersion": 3
+      },
+      "browser": "134.0.6998.35",
+      "samples": [
+        {
+          "navigationAndIdleMs": 529.82,
+          "cpuMs": 90,
+          "rssKiB": 1209704,
+          "adRequestsReachedServer": 0,
+          "essential": true,
+          "adScriptsExecuted": 0,
+          "baitHidden": false,
+          "domContentLoadedMs": 18.30000000000291,
+          "loadMs": 25.89999999999418
+        },
+        {
+          "navigationAndIdleMs": 531.77,
+          "cpuMs": 110,
+          "rssKiB": 1211408,
+          "adRequestsReachedServer": 0,
+          "essential": true,
+          "adScriptsExecuted": 0,
+          "baitHidden": false,
+          "domContentLoadedMs": 30.89999999999418,
+          "loadMs": 31.09999999999127
+        },
+        {
+          "navigationAndIdleMs": 526.75,
+          "cpuMs": 80,
+          "rssKiB": 1212884,
+          "adRequestsReachedServer": 0,
+          "essential": true,
+          "adScriptsExecuted": 0,
+          "baitHidden": false,
+          "domContentLoadedMs": 15.30000000000291,
+          "loadMs": 23.40000000000873
+        },
+        {
+          "navigationAndIdleMs": 529.43,
+          "cpuMs": 100,
+          "rssKiB": 1214300,
+          "adRequestsReachedServer": 0,
+          "essential": true,
+          "adScriptsExecuted": 0,
+          "baitHidden": false,
+          "domContentLoadedMs": 13.19999999999709,
+          "loadMs": 26.30000000000291
+        },
+        {
+          "navigationAndIdleMs": 528.96,
+          "cpuMs": 50,
+          "rssKiB": 1216412,
+          "adRequestsReachedServer": 0,
+          "essential": true,
+          "adScriptsExecuted": 0,
+          "baitHidden": false,
+          "domContentLoadedMs": 27.60000000000582,
+          "loadMs": 27.69999999999709
+        },
+        {
+          "navigationAndIdleMs": 529.33,
+          "cpuMs": 80,
+          "rssKiB": 1217936,
+          "adRequestsReachedServer": 0,
+          "essential": true,
+          "adScriptsExecuted": 0,
+          "baitHidden": false,
+          "domContentLoadedMs": 17.39999999999418,
+          "loadMs": 26
+        },
+        {
+          "navigationAndIdleMs": 527.62,
+          "cpuMs": 90,
+          "rssKiB": 1219008,
+          "adRequestsReachedServer": 0,
+          "essential": true,
+          "adScriptsExecuted": 0,
+          "baitHidden": false,
+          "domContentLoadedMs": 18.10000000000582,
+          "loadMs": 23.60000000000582
+        }
+      ],
+      "median": {
+        "navigationAndIdleMs": 529.33,
+        "cpuMs": 90,
+        "rssKiB": 1214300,
+        "loadMs": 26,
+        "adRequestsReachedServer": 0
+      }
+    },
+    {
+      "label": "external-baseline",
+      "loadedTargets": [
+        {
+          "type": "background_page",
+          "url": "chrome-extension://jppjkhgidndidkaanlajkpjdijkmgjpl/background.html"
+        }
+      ],
+      "extension": {
+        "name": "uBlock Origin",
+        "version": "1.76.0",
+        "manifestVersion": 2
+      },
+      "browser": "134.0.6998.35",
+      "samples": [
+        {
+          "navigationAndIdleMs": 539.87,
+          "cpuMs": 150,
+          "rssKiB": 1072408,
+          "adRequestsReachedServer": 0,
+          "essential": true,
+          "adScriptsExecuted": 0,
+          "baitHidden": false,
+          "domContentLoadedMs": 39.80000000000291,
+          "loadMs": 40.5
+        },
+        {
+          "navigationAndIdleMs": 537.51,
+          "cpuMs": 120,
+          "rssKiB": 1072488,
+          "adRequestsReachedServer": 0,
+          "essential": true,
+          "adScriptsExecuted": 0,
+          "baitHidden": false,
+          "domContentLoadedMs": 37.5,
+          "loadMs": 38.19999999999709
+        },
+        {
+          "navigationAndIdleMs": 739.33,
+          "cpuMs": 440,
+          "rssKiB": 1005800,
+          "adRequestsReachedServer": 0,
+          "essential": true,
+          "adScriptsExecuted": 0,
+          "baitHidden": false,
+          "domContentLoadedMs": 26.30000000000291,
+          "loadMs": 236
+        },
+        {
+          "navigationAndIdleMs": 536.26,
+          "cpuMs": 190,
+          "rssKiB": 1059648,
+          "adRequestsReachedServer": 0,
+          "essential": true,
+          "adScriptsExecuted": 0,
+          "baitHidden": false,
+          "domContentLoadedMs": 37.89999999999418,
+          "loadMs": 38
+        },
+        {
+          "navigationAndIdleMs": 682.78,
+          "cpuMs": 300,
+          "rssKiB": 1060692,
+          "adRequestsReachedServer": 0,
+          "essential": true,
+          "adScriptsExecuted": 0,
+          "baitHidden": false,
+          "domContentLoadedMs": 182.89999999999418,
+          "loadMs": 183.09999999999127
+        },
+        {
+          "navigationAndIdleMs": 549.82,
+          "cpuMs": 230,
+          "rssKiB": 1143344,
+          "adRequestsReachedServer": 0,
+          "essential": true,
+          "adScriptsExecuted": 0,
+          "baitHidden": false,
+          "domContentLoadedMs": 47.39999999999418,
+          "loadMs": 47.69999999999709
+        },
+        {
+          "navigationAndIdleMs": 745.87,
+          "cpuMs": 290,
+          "rssKiB": 1074356,
+          "adRequestsReachedServer": 0,
+          "essential": true,
+          "adScriptsExecuted": 0,
+          "baitHidden": false,
+          "domContentLoadedMs": 244.90000000000873,
+          "loadMs": 245.10000000000582
+        }
+      ],
+      "median": {
+        "navigationAndIdleMs": 549.82,
+        "cpuMs": 230,
+        "rssKiB": 1072408,
+        "loadMs": 47.69999999999709,
+        "adRequestsReachedServer": 0
+      }
+    }
+  ],
+  "provenance": {
+    "commit": "9f56a38b2fb7f165f60142404bbf7363149d36d2",
+    "workflow": "https://github.com/linuxhell/mblock/actions/runs/43232983777",
+    "ublockAssetSHA256": "e76a1912426caa7b8679ad11dd140d1529c23db22ddbe892b6f901e9b7763456"
+  }
+}

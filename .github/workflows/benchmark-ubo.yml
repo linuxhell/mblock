@@ -1,0 +1,86 @@
+name: Controlled comparison with uBlock Origin
+on:
+  push:
+    branches: ['improve/**']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  compare:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run fetch:lists
+      - run: npm run build
+      - name: Build previous version with exactly the same lists
+        run: |
+          git worktree add --detach /tmp/mblock-before 3d7d8874c152720a72ad224ecd29b86c49899e5b
+          ln -s "$GITHUB_WORKSPACE/node_modules" /tmp/mblock-before/node_modules
+          mkdir -p /tmp/mblock-before/data
+          cp -a data/cache /tmp/mblock-before/data/cache
+          cd /tmp/mblock-before
+          npm run build
+      - name: Verify every filter and diagnostic origin is preserved
+        run: node scripts/verify-equivalence.mjs /tmp/mblock-before/dist/chrome dist/chrome
+      - name: Verify compact cosmetic storage against every listed domain
+        run: node scripts/verify-cosmetic-index.mjs dist/chrome
+      # A shared historical Chromium is necessary to run both MV2 uBO and MV3
+      # mBlock. This is an isolated fixture, never a recommended browsing version.
+      - run: npx --yes --package=playwright@1.51.1 playwright install --with-deps chromium
+      - name: Download and verify official uBO 1.76.0
+        run: |
+          curl --fail --location --retry 3 https://github.com/gorhill/uBlock/releases/download/1.76.0/uBlock0_1.76.0.chromium.zip -o /tmp/ubo.zip
+          echo 'e76a1912426caa7b8679ad11dd140d1529c23db22ddbe892b6f901e9b7763456  /tmp/ubo.zip' | sha256sum --check
+          unzip -q /tmp/ubo.zip -d /tmp/ubo
+      - name: Measure both active extensions in the same browser
+        env:
+          MBLOCK_BROWSER_PATH: /home/runner/.cache/ms-playwright/chromium-1161/chrome-linux/chrome
+          MBLOCK_PREVIOUS: /tmp/mblock-before/dist/chrome
+          MBLOCK_BASELINE: /tmp/ubo/uBlock0.chromium
+          MBLOCK_BENCH_RUNS: '7'
+          MBLOCK_MAINTENANCE_RUNS: '3'
+        run: npm run benchmark
+      - name: Repeat comparison in reverse order
+        env:
+          MBLOCK_BROWSER_PATH: /home/runner/.cache/ms-playwright/chromium-1161/chrome-linux/chrome
+          MBLOCK_PREVIOUS: /tmp/mblock-before/dist/chrome
+          MBLOCK_BASELINE: /tmp/ubo/uBlock0.chromium
+          MBLOCK_BENCH_RUNS: '7'
+          MBLOCK_MAINTENANCE_RUNS: '3'
+          MBLOCK_BENCH_REVERSE: '1'
+          MBLOCK_BENCH_OUTPUT: test-results/benchmark-reverse.json
+        run: npm run benchmark
+      - name: Measure 24 same-origin frames
+        env:
+          MBLOCK_BROWSER_PATH: /home/runner/.cache/ms-playwright/chromium-1161/chrome-linux/chrome
+          MBLOCK_PREVIOUS: /tmp/mblock-before/dist/chrome
+          MBLOCK_BASELINE: /tmp/ubo/uBlock0.chromium
+          MBLOCK_BENCH_RUNS: '7'
+          MBLOCK_BENCH_FRAMES: '24'
+          MBLOCK_BENCH_OUTPUT: test-results/benchmark-frames.json
+        run: npm run benchmark
+      - name: Measure 24 same-origin frames in reverse order
+        env:
+          MBLOCK_BROWSER_PATH: /home/runner/.cache/ms-playwright/chromium-1161/chrome-linux/chrome
+          MBLOCK_PREVIOUS: /tmp/mblock-before/dist/chrome
+          MBLOCK_BASELINE: /tmp/ubo/uBlock0.chromium
+          MBLOCK_BENCH_RUNS: '7'
+          MBLOCK_BENCH_FRAMES: '24'
+          MBLOCK_BENCH_OUTPUT: test-results/benchmark-frames-reverse.json
+          MBLOCK_BENCH_REVERSE: '1'
+        run: npm run benchmark
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mblock-vs-ubo-controlled
+          path: |
+            test-results/
+            dist/build-report.json

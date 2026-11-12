@@ -21,3 +21,13 @@ test('FC Portables fix matches the observed rotating loader and fallback but not
  assert.ok(!matches('https://evilfcportables.com/a1bc2d/fb71facc6f58dac3.js?ver=1.2.3'));
  assert.equal(builtInRules({fixes:false}).length,0);
 });
+
+test('rule equality preserves key-independent semantics and notices every rule change', async () => {
+ const {sameRules}=await import('../src/shared/core.js');
+ const rules=[{id:1,priority:10,action:{type:'block'},condition:{urlFilter:'ads',resourceTypes:['script']}}];
+ assert.equal(sameRules(rules,[{condition:{resourceTypes:['script'],urlFilter:'ads'},action:{type:'block'},priority:10,id:1}]),true);
+ assert.equal(sameRules(rules,[]),false);
+ for(const modified of [{...rules[0],id:2},{...rules[0],priority:20},{...rules[0],condition:{urlFilter:'different'}}]) assert.equal(sameRules(rules,[modified]),false);
+ // A mismatch in length must not even inspect the potentially huge records.
+ assert.equal(sameRules([{get id(){throw Error('must not serialize');}}],[]),false);
+});
