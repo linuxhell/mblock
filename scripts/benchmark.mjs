@@ -58,11 +58,14 @@ async function measure(label, extensionPath){
    // Do not open the dashboard before RSS sampling: a closed extension page can
    // leave a renderer process resident and unfairly charge that UI to mBlock.
    configuration=await worker.evaluate(async()=>{
-    await chrome.alarms.clear('update');
     const db=await new Promise((resolve,reject)=>{const r=indexedDB.open('mblock-v1',1);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});
-    const metadata=await new Promise((resolve,reject)=>{const r=db.transaction('meta').objectStore('meta').get('active');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});
+    let metadata=null;
+    for(let attempt=0;attempt<120&&!metadata;attempt++){
+      metadata=await new Promise((resolve,reject)=>{const r=db.transaction('meta').objectStore('meta').get('active');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});
+      if(!metadata)await new Promise(resolve=>setTimeout(resolve,100));
+    }
     db.close();
-    if(!metadata)throw Error('mBlock metadata unavailable');
+    if(!metadata)throw Error('mBlock metadata unavailable after initialization');
     return {stats:metadata.stats,sourceHashes:(metadata.sources||[]).map(s=>({id:s.id,sha256:s.sha256}))};
    });
   }
@@ -138,7 +141,7 @@ try{
  if(previous && JSON.stringify(previous.configuration)!==JSON.stringify(current.configuration)) throw new Error('Before/after filter configuration differs; refuse comparison.');
  const baseline = scenarios.find(s => s.label === 'external-baseline');
  const originCompared = baseline?.extension?.name === 'uBlock Origin' && baseline.extension.manifestVersion === 2;
- const report={at:new Date().toISOString(),order:scenarios.map(s=>s.label),machine:{platform:platform(),cpu:cpus()[0]?.model,logicalCPUs:cpus().length},fixture:{runs,frames,maintenanceRuns,adsPerPage:ads,cache:'no-store; one warm-up',heapMeasurement:'extension target heap is recorded before and after explicit V8 garbage collection',note:'Synthetic local fixture; no live-site claim. Fresh default profiles; mBlock scheduled update alarm is cleared for the run; no dashboard is opened before RSS samples; dead extension bootstrap objects are garbage-collected before steady-state sampling for every extension. uBO default bundled lists; subscriptions are not identical. Sequential scenarios can have order and background update bias.'},comparisonToUBlockOriginComplete:originCompared,scope:'Single synthetic fixture only; not a general superiority test',baselineProvided:!!process.env.MBLOCK_BASELINE,scenarios};
+ const report={at:new Date().toISOString(),order:scenarios.map(s=>s.label),machine:{platform:platform(),cpu:cpus()[0]?.model,logicalCPUs:cpus().length},fixture:{runs,frames,maintenanceRuns,adsPerPage:ads,cache:'no-store; one warm-up',heapMeasurement:'extension target heap is recorded before and after explicit V8 garbage collection',note:'Synthetic local fixture; no live-site claim. Fresh default profiles; no dashboard is opened before RSS samples; dead extension bootstrap objects are garbage-collected before steady-state sampling for every extension. uBO default bundled lists; subscriptions are not identical. Sequential scenarios can have order and background update bias.'},comparisonToUBlockOriginComplete:originCompared,scope:'Single synthetic fixture only; not a general superiority test',baselineProvided:!!process.env.MBLOCK_BASELINE,scenarios};
  await mkdir('test-results',{recursive:true});await writeFile(process.env.MBLOCK_BENCH_OUTPUT || 'test-results/benchmark.json',JSON.stringify(report,null,2));
  console.log(JSON.stringify(scenarios.map(x=>({label:x.label,initializationAndWarmupMs:x.initializationAndWarmupMs,extension:x.extension,median:x.median,extensionMemory:x.extensionMemory,maintenance:x.maintenance,processes:x.processes,heaps:x.heaps})),null,2));
 }finally{await new Promise(r=>server.close(r));}
