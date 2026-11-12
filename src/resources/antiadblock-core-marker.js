@@ -9,6 +9,7 @@
   const markerSelector = 'meta[name="antiadblockcore-verification"],script#antiadblock-core-js';
   const overlayText = /(?:adblocker detected|ad blocker detected|disable your adblocker|disable your ad blocker|how to disable your adblocker|i['’]ve disabled it)/i;
   let active = false, observer, stopTimer, overlayRemovals = 0;
+  const stopIfInactive = () => { if (!active) observer?.disconnect(); };
   const mark = state => { try { const root=document.documentElement; if (!root) return; const current=root.getAttribute('data-mblock-aabc-state'); if (current !== 'redirected' || state === 'overlay-removed') root.setAttribute('data-mblock-aabc-state', state); root.setAttribute('data-mblock-aabc-overlay-removals', String(overlayRemovals)); } catch {} };
 
   const exposeCleanResult = () => {
@@ -95,6 +96,18 @@
 
   const root = document.documentElement || document;
   observer.observe(root, { childList: true, subtree: true });
+  // On ordinary sites this observer is only needed while the initial document is
+  // being assembled. Do not keep a subtree observer alive for the lifetime of
+  // every page when no AntiAdblockCore marker ever appears.
+  stopTimer = setTimeout(stopIfInactive, 8000);
   activate();
-  addEventListener('DOMContentLoaded', () => { activate(); if (active) removeRecoveryOverlay(document); }, { once: true });
+  addEventListener('DOMContentLoaded', () => {
+    activate();
+    if (active) removeRecoveryOverlay(document);
+    else { clearTimeout(stopTimer); stopTimer = setTimeout(stopIfInactive, 4000); }
+  }, { once: true });
+  addEventListener('load', () => {
+    activate();
+    if (!active) { clearTimeout(stopTimer); stopTimer = setTimeout(stopIfInactive, 1000); }
+  }, { once: true });
 })();
