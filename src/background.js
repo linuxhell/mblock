@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
-import { DEFAULT_SETTINGS, hostFromURL, validHost, sitePolicy, controlRules, redactURL, RingBuffer, domainMatches, sameRules } from './shared/core.js';
+import { DEFAULT_SETTINGS, hostFromURL, validHost, sitePolicy, redactURL, RingBuffer, domainMatches, sameRules } from './shared/core.js';
 import { SOURCES, LIMITS, VERSION } from './shared/sources.js';
 import { compileLists, cosmeticSelectors, safeSelector } from './shared/compiler.js';
-import { builtInRules } from './shared/fixes.js';
 import { fetchList } from './shared/fetch-lists.js';
 import * as db from './shared/db.js';
 import { readBundle } from './shared/bundle.js';
@@ -17,7 +16,7 @@ import { probeSite } from './shared/site-probe.js';
 import { updateAlarm, validUpdateInterval, unchangedLists } from './shared/update-policy.js';
 import { installElementPicker } from './shared/element-picker.js';
 import { CosmeticCache } from './shared/cosmetic-cache.js';
-import { controlsOnly, planControlChange, nextConfigurationTime } from './shared/control-state.js';
+import { controlsOnly, planControlChange, nextConfigurationTime, composeRules } from './shared/control-state.js';
 const api = globalThis.browser || chrome;
 const dnr = api.declarativeNetRequest;
 const bootstrapIds = api.runtime.getManifest().declarative_net_request.rule_resources.filter(r => r.id.startsWith('bootstrap')).map(r => r.id);
@@ -71,7 +70,7 @@ function isUI(sender) { return sender.id === api.runtime.id && typeof sender.url
 function requireUI(sender) { if (!isUI(sender)) throw new Error('Operação permitida apenas no painel da extensão.'); }
 function targetName() { return BUILD_TARGET; }
 function availableLimit() { return Math.min(30000, dnr.MAX_NUMBER_OF_DYNAMIC_RULES || 5000); }
-function allRules(compiled, config) { const base=compiled.rules; const extra=[...builtInRules(config),...controlRules(config)].map((rule,i)=>({...rule,id:base.length+i+1})); return extra.length ? base.concat(extra) : base; }
+function allRules(compiled, config) { return composeRules(compiled.rules, config); }
 function snapshot(compiled, config, sources, texts) { return { at: nextConfigurationTime(metadata?.at), transactionId:crypto.randomUUID(), engineVersion: VERSION, target, compiled, rules: allRules(compiled, config), settings: config, sources, texts }; }
 function rebuildSnapshot(old) { const config = { ...DEFAULT_SETTINGS, ...old.settings }, lists = [...old.texts]; if (config.customRules.trim()) lists.push({ id: 'custom', text: config.customRules }); return snapshot(compileLists(lists, { target, maxRules: availableLimit() - 200 }), config, old.sources, old.texts); }
 async function activate(...args) { rulesChanging = true; try { return await installSnapshot(...args); } finally { rulesChanging = false; } }
