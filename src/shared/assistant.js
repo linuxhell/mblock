@@ -18,8 +18,13 @@ export function analyzeEvidence(evidence, settings, runtime = {}) {
     const trace = evidence.antiAdblockCore || {};
     const configured = settings.fixes !== false && policy.fixes !== false;
     const learned = Array.isArray(settings.antiAdblockCoreRules) && settings.antiAdblockCoreRules.some(x => { let loaderHost=x?.loaderHost||''; if (!loaderHost && x?.loaderUrl) try { loaderHost=new URL(x.loaderUrl).hostname; } catch {} return x?.siteHost === host && loaderHost === trace.loaderHost; });
-    const verified = trace.fixState === 'redirected' || trace.fixState === 'overlay-removed';
-    proposals.push({ id: 'antiadblock-core-v4', mechanism: 'learned rotating loader-host redirect with document-start recovery fallback', kind: 'packaged_repair', confidence: 'high', enabled: verified, configured, learned, fixState: trace.fixState || 'not-run', loaderObserved: !!trace.loaderUrl, available: !policy.paused, validation: 'AntiAdblockCore markers observed; learned rule follows the dedicated loader host across rotating paths; enabled only after redirect or overlay suppression is verified', automaticallyGenerated: false });
+    const redirected = trace.fixState === 'redirected';
+    const overlaySuppressed = trace.fixState === 'overlay-removed';
+    const recoveryVerified = learned && trace.fixState === 'marker-active' && evidence.warningPresent === false;
+    const verified = redirected || overlaySuppressed || recoveryVerified;
+    const verification = redirected ? 'native-redirect' : overlaySuppressed ? 'overlay-suppression' : recoveryVerified ? 'document-start-recovery' : 'pending';
+    const fixState = recoveryVerified ? 'recovery-active' : (trace.fixState || 'not-run');
+    proposals.push({ id: 'antiadblock-core-v4', mechanism: 'learned rotating loader-host redirect with document-start recovery fallback', kind: 'packaged_repair', confidence: 'high', enabled: verified, configured, learned, fixState, verification, loaderObserved: !!trace.loaderUrl, available: !policy.paused, validation: 'AntiAdblockCore markers observed; learned loader-host rule is active. Success is verified by native redirect, overlay suppression, or learned document-start recovery with no warning after reload.', automaticallyGenerated: false });
   }
   let youtube;
   if (isYouTube(host)) {
