@@ -20,9 +20,11 @@ jobs:
       - run: npm ci
       - run: npm run fetch:lists
       - run: npm run build
-      - name: Build previous version with exactly the same lists
+      - name: Build merge-base version with exactly the same lists
         run: |
-          git worktree add --detach /tmp/mblock-before 3d7d8874c152720a72ad224ecd29b86c49899e5b
+          base_sha=$(git merge-base HEAD origin/main)
+          echo "Comparing current $GITHUB_SHA against main merge-base $base_sha"
+          git worktree add --detach /tmp/mblock-before "$base_sha"
           ln -s "$GITHUB_WORKSPACE/node_modules" /tmp/mblock-before/node_modules
           mkdir -p /tmp/mblock-before/data
           cp -a data/cache /tmp/mblock-before/data/cache
