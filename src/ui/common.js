@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 export const api = globalThis.browser || chrome;
+export const runtimeVersion = api.runtime.getManifest().version;
+for (const element of globalThis.document?.querySelectorAll?.('[data-extension-version]') || []) {
+  element.textContent = runtimeVersion;
+}
 import { t, initLocale, localeTag } from './locale.js';
 export { t, localeTag };
 await initLocale();
