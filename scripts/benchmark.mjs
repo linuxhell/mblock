@@ -25,14 +25,24 @@ function processMemory(processes) {
  const values=new Map(lines.map(line=>line.trim().split(/\s+/).map(Number)));
  return processes.map(p=>({id:p.id,type:p.type,rssKiB:values.get(p.id)||0}));
 }
+let targetCommandId=0;
+async function targetCommand(root,sessionId,method) {
+ const id=++targetCommandId;
+ return new Promise((resolve,reject)=>{
+  const timer=setTimeout(()=>{root.off('Target.receivedMessageFromTarget',receive);reject(Error('heap probe timeout: '+method));},5000);
+  function receive(event){if(event.sessionId!==sessionId)return;const message=JSON.parse(event.message);if(message.id!==id)return;clearTimeout(timer);root.off('Target.receivedMessageFromTarget',receive);message.error?reject(Error(message.error.message)):resolve(message.result||{});}
+  root.on('Target.receivedMessageFromTarget',receive);
+  root.send('Target.sendMessageToTarget',{sessionId,message:JSON.stringify({id,method})}).catch(error=>{clearTimeout(timer);root.off('Target.receivedMessageFromTarget',receive);reject(error);});
+ });
+}
 async function targetHeap(root,targetId) {
  const {sessionId}=await root.send('Target.attachToTarget',{targetId,flatten:false});
- try{return await new Promise((resolve,reject)=>{
-  const timer=setTimeout(()=>{root.off('Target.receivedMessageFromTarget',receive);reject(Error('heap probe timeout'));},5000);
-  function receive(event){if(event.sessionId!==sessionId)return;const message=JSON.parse(event.message);if(message.id!==1)return;clearTimeout(timer);root.off('Target.receivedMessageFromTarget',receive);message.error?reject(Error(message.error.message)):resolve(message.result);}
-  root.on('Target.receivedMessageFromTarget',receive);
-  root.send('Target.sendMessageToTarget',{sessionId,message:JSON.stringify({id:1,method:'Runtime.getHeapUsage'})}).catch(reject);
- });}finally{await root.send('Target.detachFromTarget',{sessionId});}
+ try{
+  const beforeGc=await targetCommand(root,sessionId,'Runtime.getHeapUsage');
+  await targetCommand(root,sessionId,'HeapProfiler.collectGarbage');
+  const afterGc=await targetCommand(root,sessionId,'Runtime.getHeapUsage');
+  return {beforeGc,afterGc,reclaimedBytes:Math.max(0,(beforeGc.usedSize||0)-(afterGc.usedSize||0))};
+ }finally{await root.send('Target.detachFromTarget',{sessionId});}
 }
 async function measure(label, extensionPath){
  const setupStarted=performance.now();
@@ -106,7 +116,7 @@ try{
  if(previous && JSON.stringify(previous.configuration)!==JSON.stringify(current.configuration)) throw new Error('Before/after filter configuration differs; refuse comparison.');
  const baseline = scenarios.find(s => s.label === 'external-baseline');
  const originCompared = baseline?.extension?.name === 'uBlock Origin' && baseline.extension.manifestVersion === 2;
- const report={at:new Date().toISOString(),order:scenarios.map(s=>s.label),machine:{platform:platform(),cpu:cpus()[0]?.model,logicalCPUs:cpus().length},fixture:{runs,frames,maintenanceRuns,adsPerPage:ads,cache:'no-store; one warm-up',note:'Synthetic local fixture; no live-site claim. Fresh default profiles; mBlock auto-updates disabled after initialization; uBO default bundled lists; subscriptions are not identical. Sequential scenarios can have order and background update bias.'},comparisonToUBlockOriginComplete:originCompared,scope:'Single synthetic fixture only; not a general superiority test',baselineProvided:!!process.env.MBLOCK_BASELINE,scenarios};
+ const report={at:new Date().toISOString(),order:scenarios.map(s=>s.label),machine:{platform:platform(),cpu:cpus()[0]?.model,logicalCPUs:cpus().length},fixture:{runs,frames,maintenanceRuns,adsPerPage:ads,cache:'no-store; one warm-up',heapMeasurement:'extension target heap is recorded before and after explicit V8 garbage collection',note:'Synthetic local fixture; no live-site claim. Fresh default profiles; mBlock auto-updates disabled after initialization; uBO default bundled lists; subscriptions are not identical. Sequential scenarios can have order and background update bias.'},comparisonToUBlockOriginComplete:originCompared,scope:'Single synthetic fixture only; not a general superiority test',baselineProvided:!!process.env.MBLOCK_BASELINE,scenarios};
  await mkdir('test-results',{recursive:true});await writeFile(process.env.MBLOCK_BENCH_OUTPUT || 'test-results/benchmark.json',JSON.stringify(report,null,2));
  console.log(JSON.stringify(scenarios.map(x=>({label:x.label,initializationAndWarmupMs:x.initializationAndWarmupMs,extension:x.extension,median:x.median,maintenance:x.maintenance,processes:x.processes,heaps:x.heaps})),null,2));
 }finally{await new Promise(r=>server.close(r));}
