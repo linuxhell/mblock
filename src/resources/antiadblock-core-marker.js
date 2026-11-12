@@ -8,7 +8,8 @@
 
   const markerSelector = 'meta[name="antiadblockcore-verification"],script#antiadblock-core-js';
   const overlayText = /(?:adblocker detected|ad blocker detected|disable your adblocker|disable your ad blocker|how to disable your adblocker|i['’]ve disabled it)/i;
-  let active = false, observer, stopTimer;
+  let active = false, observer, stopTimer, overlayRemovals = 0;
+  const mark = state => { try { const root=document.documentElement; if (!root) return; const current=root.getAttribute('data-mblock-aabc-state'); if (current !== 'redirected' || state === 'overlay-removed') root.setAttribute('data-mblock-aabc-state', state); root.setAttribute('data-mblock-aabc-overlay-removals', String(overlayRemovals)); } catch {} };
 
   const exposeCleanResult = () => {
     try {
@@ -16,6 +17,7 @@
       globalThis.__tlx = true;
       globalThis.AABC_DETECTION = { detected: false, blockerType: null, path: 'MBLOCK', browser: navigator.userAgent };
       globalThis.AABC_ON_DETECT = () => {};
+      mark('marker-active');
     } catch {}
   };
 
@@ -54,6 +56,8 @@
         else break;
       }
       target.remove();
+      overlayRemovals++;
+      mark('overlay-removed');
       removed = true;
     }
     if (removed) restorePage();
