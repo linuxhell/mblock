@@ -18,49 +18,74 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-      - name: Check AMO credentials
-        env:
-          AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
-          AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
-        run: test -n "$AMO_JWT_ISSUER" && test -n "$AMO_JWT_SECRET"
       - run: npm ci
       - run: npm run fetch:lists
       - run: npm run build
       - run: node scripts/lint-firefox.mjs
-      - name: Download already signed Firefox 0.3.1 from AMO
-        env:
-          AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
-          AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+      - name: Download already signed Firefox 0.3.1 from public AMO API
         shell: bash
         run: |
-          jwt=$(python3 - <<'PY'
-          import base64, hashlib, hmac, json, os, time, uuid
-          b64=lambda b: base64.urlsafe_b64encode(b).rstrip(b'=').decode()
-          header=b64(json.dumps({'alg':'HS256','typ':'JWT'},separators=(',',':')).encode())
-          now=int(time.time())
-          payload=b64(json.dumps({'iss':os.environ['AMO_JWT_ISSUER'],'jti':uuid.uuid4().hex,'iat':now,'exp':now+300},separators=(',',':')).encode())
-          body=f'{header}.{payload}'
-          sig=b64(hmac.new(os.environ['AMO_JWT_SECRET'].encode(),body.encode(),hashlib.sha256).digest())
-          print(f'{body}.{sig}')
-          PY
+          set -euo pipefail
+          endpoints=(
+            "https://addons.mozilla.org/api/v5/addons/addon/mblock@linuxhell.github.io/versions/0.3.1/"
+            "https://addons.mozilla.org/api/v4/addons/mblock@linuxhell.github.io/versions/0.3.1/"
           )
-          auth="Authorization: JWT $jwt"
-          curl --fail --silent --show-error -H "$auth"             "https://addons.mozilla.org/api/v4/addons/mblock@linuxhell.github.io/versions/0.3.1/"             -o amo-version.json
+          rm -f amo-version.json
+          for url in "${endpoints[@]}"; do
+            code=$(curl --location --silent --show-error --output amo-candidate.json --write-out '%{http_code}' "$url" || true)
+            echo "AMO API $url -> HTTP $code"
+            if [ "$code" = "200" ]; then
+              mv amo-candidate.json amo-version.json
+              break
+            fi
+          done
+          test -s amo-version.json || { echo 'Public AMO API did not expose signed 0.3.1'; exit 1; }
           python3 - <<'PY'
           import json
-          data=json.load(open('amo-version.json'))
-          files=[f for f in data.get('files',[]) if f.get('signed')]
-          if not files:
-              raise SystemExit('AMO 0.3.1 has no signed file')
-          open('amo-download-url.txt','w').write(files[0]['download_url'])
-          print('AMO signed file found:', files[0].get('hash',''))
+          data=json.load(open('amo-version.json', encoding='utf-8'))
+          urls=[]
+          def walk(x):
+              if isinstance(x, dict):
+                  for k,v in x.items():
+                      if k in ('download_url','url') and isinstance(v,str) and '.xpi' in v:
+                          urls.append(v)
+                      walk(v)
+              elif isinstance(x, list):
+                  for v in x: walk(v)
+          walk(data)
+          urls=list(dict.fromkeys(urls))
+          if not urls:
+              raise SystemExit('AMO version response contained no XPI URL')
+          open('amo-download-url.txt','w',encoding='utf-8').write(urls[0])
+          print('AMO signed XPI URL found')
           PY
           mkdir -p signed
-          curl --fail --location --silent --show-error -H "$auth"             "$(cat amo-download-url.txt)" -o signed/mblock-firefox-0.3.1.xpi
+          curl --fail --location --silent --show-error "$(cat amo-download-url.txt)" -o signed/mblock-firefox-0.3.1.xpi
+          python3 - <<'PY'
+          import os, zipfile, json
+          p='signed/mblock-firefox-0.3.1.xpi'
+          if os.path.getsize(p) < 100000:
+              raise SystemExit('Downloaded XPI is unexpectedly small')
+          with zipfile.ZipFile(p) as z:
+              m=json.loads(z.read('manifest.json'))
+              if m.get('version') != '0.3.1':
+                  raise SystemExit('Downloaded XPI version mismatch')
+              names=set(z.namelist())
+              if not any(n.startswith('META-INF/') for n in names):
+                  raise SystemExit('Downloaded XPI has no Mozilla signature metadata')
+          print('Signed Firefox XPI validated')
+          PY
       - name: Package release assets
         run: python3 scripts/package.py --require-firefox --signed-firefox signed/mblock-firefox-0.3.1.xpi
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "v0.3.1"             --target "911df7ae73eecb44c29f805e9f29a193096a257e"             --title "mBlock 0.3.1"             --notes-file docs/RELEASE_NOTES.md             artifacts/mblock-chrome-0.3.1.zip             artifacts/mblock-edge-0.3.1.zip             artifacts/mblock-firefox-0.3.1.xpi             artifacts/SHA256SUMS.txt
+          gh release create "v0.3.1" \
+            --target "911df7ae73eecb44c29f805e9f29a193096a257e" \
+            --title "mBlock 0.3.1" \
+            --notes-file docs/RELEASE_NOTES.md \
+            artifacts/mblock-chrome-0.3.1.zip \
+            artifacts/mblock-edge-0.3.1.zip \
+            artifacts/mblock-firefox-0.3.1.xpi \
+            artifacts/SHA256SUMS.txt
