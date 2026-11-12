@@ -166,7 +166,7 @@ async function changeControls(patch) {
     const result=await dnr.isRegexSupported({regex:rule.condition.regexFilter,isCaseSensitive:rule.condition.isUrlFilterCaseSensitive===true});
     if(!result.isSupported)throw Error('Regex incompatível: '+(result.reason||'unknown'));
   }
-  const scriptsChanged=Object.keys(patch).some(key=>['enabled','youtube','sites'].includes(key));
+  const scriptsChanged=Object.keys(patch).some(key=>['enabled','youtube','fixes','sites'].includes(key));
   await db.putControlIntent(plan.next);rulesChanging=true;let applied=false;
   try{
     try{
@@ -301,6 +301,19 @@ async function handle(message, sender) {
     if (!sender.tab || !activeFor(sender.tab.id)) return {};
     const p = message.payload || {};
     event('page_snapshot', { tabId: sender.tab.id, host: hostFromURL(sender.url), antiAdblockSignal: !!p.antiAdblockSignal, signal: typeof p.signal === 'string' ? p.signal.slice(0, 70) : '', markers: Array.isArray(p.markers) ? p.markers.filter(x => typeof x === 'string').slice(0, 6).map(x => x.slice(0, 80)) : [], timings: { domContentLoaded: Number(p.timings?.domContentLoaded) || 0, load: Number(p.timings?.load) || 0, contentTaskMs: Number(p.timings?.contentTaskMs) || 0 }, resourceErrors: Math.min(1000, Number(p.resourceErrors) || 0) }); return {};
+  }
+  if (message.type === 'picker_preview') {
+    const pending = sender.tab && await db.get('meta', 'picker:' + sender.tab.id);
+    const host = hostFromURL(sender.url);
+    if (!pending || pending.token !== message.token || pending.until < Date.now() || sender.frameId !== 0 || host !== pending.host) throw new Error('Seleção expirada. Abra o bloqueador de elementos novamente.');
+    const selector = message.selector;
+    if (typeof selector !== 'string' || !safeSelector(selector) || /[\r\n]/.test(selector)) throw new Error('Seletor inválido.');
+    if (sitePolicy(settings, host).paused || !sitePolicy(settings, host).cosmetic) throw new Error('Ative a proteção e a ocultação por CSS neste site.');
+    const css = ':is(' + selector + '){display:none!important}';
+    const target = { tabId: sender.tab.id, frameIds: [0] };
+    if (message.enabled === true) await api.scripting.insertCSS({ target, css, origin:'USER' });
+    else await api.scripting.removeCSS({ target, css, origin:'USER' });
+    return {};
   }
   if (message.type === 'picker_save') return serial(async () => {
     const pending = sender.tab && await db.get('meta', 'picker:' + sender.tab.id);
