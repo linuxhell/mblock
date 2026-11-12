@@ -115,8 +115,16 @@ try {
  assert.equal(await dashboard.locator('#apply-known-fix').isDisabled(),true);assert.equal(await dashboard.locator('#apply-known-fix').evaluate(e=>getComputedStyle(e).cursor),'default');assert.equal(await dashboard.locator('#apply-known-fix').getAttribute('aria-busy'),null);assert.match(await dashboard.locator('#known-fix-status').textContent(),/No known fix/);passed.push('unavailable known fix explains why and uses a normal cursor after analysis');
  await worker.evaluate(()=>{globalThis.__executeOriginal=chrome.scripting.executeScript;chrome.scripting.executeScript=options=>options.func?.name==='probeSite'?new Promise(()=>{}):globalThis.__executeOriginal(options);});
  const timeoutStarted=Date.now();await dashboard.locator('#analyze').click();await dashboard.waitForFunction(()=>document.querySelector('#status').classList.contains('error')&&document.querySelector('#analyze').getAttribute('aria-busy')===null);assert.ok(Date.now()-timeoutStarted<10000);assert.equal(await dashboard.locator('#analyze').isEnabled(),true);await worker.evaluate(()=>{chrome.scripting.executeScript=globalThis.__executeOriginal;delete globalThis.__executeOriginal;});passed.push('an unresponsive site times out and releases the assistant button');
- await call('diagnostic_start',{tabId,details:false,durationSeconds:300}); await site.reload(); await site.waitForTimeout(2500);
- let logs=await call('logs'); assert.ok(logs.entries.some(e=>e.type==='native_rule_match')); assert.ok(logs.entries.some(e=>e.type==='cosmetics_applied')); passed.push('on-demand rule and cosmetic logging');
+ const diagnosticFrame=await site.evaluate(()=>new Promise(resolve=>{const f=document.createElement('iframe');f.src='/diagnostic-frame';f.onload=()=>resolve(true);document.body.append(f);}));
+ assert.equal(diagnosticFrame,true);
+ const diagBefore=await worker.evaluate(async tabId=>chrome.scripting.executeScript({target:{tabId,allFrames:true},world:'ISOLATED',func:()=>!!globalThis.__mblockDiagnosticAttached}),tabId);
+ assert.ok(diagBefore.every(x=>x.result===false));
+ await call('diagnostic_start',{tabId,details:false,durationSeconds:300}); await site.waitForTimeout(250);
+ const diagAfter=await worker.evaluate(async tabId=>chrome.scripting.executeScript({target:{tabId,allFrames:true},world:'ISOLATED',func:()=>!!globalThis.__mblockDiagnosticAttached}),tabId);
+ assert.equal(diagAfter.find(x=>x.frameId===0)?.result,true);assert.ok(diagAfter.filter(x=>x.frameId!==0).every(x=>x.result===false));
+ await site.evaluate(()=>document.querySelector('iframe[src="/diagnostic-frame"]')?.remove());
+ await site.reload(); await site.waitForTimeout(2500);
+ let logs=await call('logs'); assert.ok(logs.entries.some(e=>e.type==='native_rule_match')); assert.ok(logs.entries.some(e=>e.type==='cosmetics_applied')); passed.push('diagnostics load only on demand in the top frame while rule and cosmetic logging remain active');
  await call('site_policy',{host:'127.0.0.1',policy:{paused:true}});await site.reload();await site.waitForFunction(()=>window.adResourceLoaded===true);
  assert.notEqual(await site.locator('.mblock-sponsored').evaluate(e=>getComputedStyle(e).display),'none');passed.push('site pause disables network and cosmetics');
  await call('site_policy',{host:'127.0.0.1',policy:{paused:false}});await site.reload();await site.waitForFunction(()=>window.essentialLoaded===true);assert.equal(await site.evaluate(()=>!!window.adResourceLoaded),false);
