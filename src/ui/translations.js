@@ -2,7 +2,6 @@
 // Portuguese source text, English, Simplified Chinese. Diagnostic field IDs stay stable.
 export const STRINGS = [
 ['mBlock · Painel','mBlock · Dashboard','mBlock · 控制面板'],
-['ALFA 0.1','ALPHA 0.1','测试版 0.1'],
 ['Proteção sob seu controle','Protection under your control','由您掌控的保护'],
 ['Carregando…','Loading…','正在加载…'],
 ['Alternar proteção global','Toggle global protection','切换全局保护'],

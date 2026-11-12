@@ -98,9 +98,13 @@ try {
  assert.equal(await worker.evaluate(async()=>JSON.stringify(await chrome.declarativeNetRequest.getDynamicRules())),rulesBefore);
  await worker.evaluate(()=>{globalThis.fetch=globalThis.__originalFetch;delete globalThis.__originalFetch;});passed.push('failed update retains previous native rules');
  await worker.evaluate(()=>{globalThis.__updateOriginal=chrome.declarativeNetRequest.updateDynamicRules;chrome.declarativeNetRequest.updateDynamicRules=async()=>{throw Error('Simulated native validation failure')};});
- await assert.rejects(()=>call('settings',{patch:{genericCosmetic:true}}),/Simulated native validation/);
+ await call('settings',{patch:{genericCosmetic:true}});
+ assert.equal((await call('state')).settings.genericCosmetic,true);
+ passed.push('CSS preference changes skip native rule replacement');
+ await assert.rejects(()=>call('settings',{patch:{enabled:false}}),/Simulated native validation/);
  await worker.evaluate(()=>{chrome.declarativeNetRequest.updateDynamicRules=globalThis.__updateOriginal;delete globalThis.__updateOriginal;});
- assert.equal((await call('state')).settings.genericCosmetic,false);
+ assert.equal((await call('state')).settings.enabled,true);
+ await call('settings',{patch:{genericCosmetic:false}});
  assert.equal(await worker.evaluate(async()=>JSON.stringify(await chrome.declarativeNetRequest.getDynamicRules())),rulesBefore);passed.push('atomic native rejection leaves settings and rules unchanged');
  await call('settings',{patch:{genericCosmetic:true}});await call('rollback');assert.equal((await call('state')).settings.genericCosmetic,false);passed.push('rollback restores previous settings and rules');
  await site.reload();await site.waitForFunction(()=>window.essentialLoaded===true);await site.waitForTimeout(200);
