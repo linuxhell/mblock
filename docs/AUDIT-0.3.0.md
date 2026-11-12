@@ -71,3 +71,11 @@ Comparação de regras sem serialização integral e proveniência com dicionár
 ## Índice de diagnóstico compacto
 
 A [terceira medição](MEMORY-THIRD-2026-11-12.md) mantém as origens compactadas também no índice de regras e as reconstrói sob demanda, com leitura atômica da regra e de seu dicionário. Economia antes/depois de 7–11 MiB de RSS e 21,3–21,5% do heap do worker. CPU/load seguem menores que uBO na fixture. A RAM ficou próxima do uBO nesta execução; variações do próprio uBO impedem atribuir toda a diferença entre rodadas ao código. Validado por 49 testes Node, 3 Python, 36 verificações de navegador e comparação completa de filtros/origens.
+
+## Controles leves, cache e índice cosmético
+
+A [rodada de RAM/CPU](PERFORMANCE-2026-11-12.md) evita carregar os filtros completos ao alterar controles locais. Mantém intenção persistente, rollback e índice de proveniência; uma falha no espelho de preferências é registrada sem invalidar o commit. Cache CSS por host/modo tem orçamento limitado, coalescência e invalidação por geração. O índice por domínio reduz repetições de includes, preservando os filtros completos no snapshot.
+
+O ganho principal foi em pausa/retomada: 90,5–90,9% menos CPU e 229–251 MiB menos RSS após a operação. Na navegação simples, RAM variou de 5,7 MiB a menos a 0,1 MiB a mais, e permaneceu 14–35 MiB acima do uBO. Em 24 frames, mBlock usou 48–52% menos CPU e 119–121 MiB menos RSS que uBO; a CPU não melhorou consistentemente contra o próprio build anterior. Não generalizar esses resultados.
+
+Validado com 56 testes Node, 3 Python, 39 verificações reais, equivalência de todas as regras/origens e 44.178 comparações do índice cosmético em 22.089 hosts. O novo código é `c4f7565`; CI e dados brutos estão no relatório.

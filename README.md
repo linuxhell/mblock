@@ -42,11 +42,11 @@ A missão é superar o uBlock Origin em resultados reproduzíveis. **Ainda não 
 
 A compilação das listas coletadas em 12/11/2026 ainda encontra cerca de 20 mil filtros incompatíveis, incluindo muitos scriptlets e filtros procedurais. Isso impede tratar o mBlock como substituto equivalente. Menos regras ou menor uso de CPU não demonstram melhor bloqueio se funções forem omitidas.
 
-A [terceira redução de memória](docs/MEMORY-THIRD-2026-11-12.md) economizou mais 7–11 MiB contra o build anterior. O load e a CPU continuaram menores que os do uBO na fixture; a RAM ficou aproximadamente empatada apenas nessa rodada, sem garantia de paridade geral.
+A [nova otimização de RAM e CPU](docs/PERFORMANCE-2026-11-12.md) reduziu a CPU de pausar/retomar a proteção em **90%**, a duração em **81%** e o RSS após essa operação em **229–251 MiB** contra o próprio build anterior. Regras locais mudam sem recarregar todas as listas; o CSS usa cache limitado e o índice cosmético ocupa 51% menos bytes serializados. Nenhum filtro foi removido.
 
-A [segunda redução de memória](docs/MEMORY-SECOND-2026-11-12.md) economizou mais 54–55 MiB contra o build anterior e manteve menor CPU/tempo que o uBO no teste; ainda restaram cerca de 40–44 MiB extras.
+Na navegação simples, o ganho de RAM foi pequeno/inconsistente e o mBlock ficou **14–35 MiB acima do uBO**. Na fixture com 24 frames, usou **48–52% menos CPU e 119–121 MiB menos RSS que uBO**. A CPU de navegação não melhorou consistentemente contra o próprio mBlock anterior. São testes sintéticos; veja dados e limites no relatório.
 
-A [otimização de memória](docs/MEMORY-2026-11-12.md) reduziu o RSS total em 6,6–8,0% contra a versão anterior e manteve menor CPU/tempo que o uBO nesta fixture. Veja [resultados medidos contra o uBO](docs/BENCHMARK-2026-11-12.md): houve menor CPU/tempo nesta fixture, com maior memória. Consulte [auditoria](docs/AUDIT-0.3.0.md) e [validação e benchmark](docs/VALIDATION.md). O benchmark recusa medir uma extensão inativa, registra CPU/RAM/tempo e confirma bloqueio e conteúdo essencial. A comparação controlada usa um Chromium histórico comum aos motores MV2/MV3; não representa a experiência em todos os navegadores atuais ou sites reais.
+Etapas anteriores, com referências e execuções diferentes: [primeira redução](docs/MEMORY-2026-11-12.md), [segunda](docs/MEMORY-SECOND-2026-11-12.md) e [terceira](docs/MEMORY-THIRD-2026-11-12.md). Consulte também [auditoria](docs/AUDIT-0.3.0.md) e [validação](docs/VALIDATION.md). O benchmark confirma bloqueadores ativos, preservação do conteúdo essencial e equivalência completa entre as listas dos builds mBlock; usa Chromium histórico comum a MV2/MV3 e não representa todos os navegadores/sites.
 
 ## Privacidade e limites
 
