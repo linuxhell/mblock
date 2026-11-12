@@ -9,6 +9,8 @@ test('control changes preserve the native base and match full rule construction'
  assert.equal(plan.metadata.stats.nativeRules,100+expected.length);assert.equal(before.snapshot.settings.enabled,true);assert.notEqual(plan.next.transactionId,undefined);
 });
 test('filter changes and legacy data require the full compiler path',()=>{
+ assert.equal(controlsOnly({antiAdblockCoreRules:[{siteHost:'www.filecatchers.com',loaderHost:'qbp5y.filecatchers.com'}]}),true);
+ assert.ok(planControlChange(state(),{antiAdblockCoreRules:[{siteHost:'www.filecatchers.com',loaderHost:'qbp5y.filecatchers.com'}]}));
  for(const patch of [{},{customRules:'ads'},{sourceIds:[]},{enabled:false,sourceIds:[]}]){assert.equal(controlsOnly(patch),false);assert.equal(planControlChange(state(),patch),null);}
  assert.equal(planControlChange({snapshot:{},metadata:{}},{enabled:false}),null);
  const bad=state();bad.snapshot.extraRules[0].id=1;assert.throws(()=>planControlChange(bad,{enabled:false}),/inválida/);
