@@ -32,6 +32,7 @@ async function targetHeap(root,targetId) {
  });}finally{await root.send('Target.detachFromTarget',{sessionId});}
 }
 async function measure(label, extensionPath){
+ const setupStarted=performance.now();
  const profile=await mkdtemp(tmpdir()+'/mblock-bench-');let context,configuration;
  try{
   const extension=extensionPath?resolve(extensionPath):null;
@@ -57,6 +58,7 @@ async function measure(label, extensionPath){
   const targets = (await root.send('Target.getTargets')).targetInfos;
   const loadedTargets = targets.filter(t => t.url.startsWith('chrome-extension://')).map(t => ({type:t.type,url:t.url}));
   if (extension && !loadedTargets.length) throw new Error(label + ': no extension target loaded');
+  const initializationAndWarmupMs=Math.round((performance.now()-setupStarted)*100)/100;
   const samples=[];
   for(let i=0;i<runs;i++){
    adHits=0;
@@ -72,7 +74,7 @@ async function measure(label, extensionPath){
   const median=key=>{const values=samples.map(x=>x[key]).filter(x=>typeof x==='number').sort((a,b)=>a-b);return values.length?values[Math.floor(values.length/2)]:null;};
   const processes=processMemory((await root.send('SystemInfo.getProcessInfo')).processInfo);
   const heaps=[];for(const t of targets.filter(t=>t.url.startsWith('chrome-extension://')))try{heaps.push({type:t.type,heap:await targetHeap(root,t.targetId)});}catch(error){heaps.push({type:t.type,error:String(error.message)});}
-  return {label,configuration,processes,heaps,loadedTargets,extension:manifest?{name:manifest.name,version:manifest.version,manifestVersion:manifest.manifest_version}:null,browser:context.browser().version(),samples,median:Object.fromEntries(['navigationAndIdleMs','cpuMs','rssKiB','loadMs','adRequestsReachedServer'].map(k=>[k,median(k)]))};
+  return {label,initializationAndWarmupMs,configuration,processes,heaps,loadedTargets,extension:manifest?{name:manifest.name,version:manifest.version,manifestVersion:manifest.manifest_version}:null,browser:context.browser().version(),samples,median:Object.fromEntries(['navigationAndIdleMs','cpuMs','rssKiB','loadMs','adRequestsReachedServer'].map(k=>[k,median(k)]))};
  }finally{if(context)await context.close();await rm(profile,{recursive:true,force:true});}
 }
 try{
@@ -88,5 +90,5 @@ try{
  const originCompared = baseline?.extension?.name === 'uBlock Origin' && baseline.extension.manifestVersion === 2;
  const report={at:new Date().toISOString(),order:scenarios.map(s=>s.label),machine:{platform:platform(),cpu:cpus()[0]?.model,logicalCPUs:cpus().length},fixture:{runs,adsPerPage:ads,cache:'no-store; one warm-up',note:'Synthetic local fixture; no live-site claim. Fresh default profiles; mBlock auto-updates disabled after initialization; uBO default bundled lists; subscriptions are not identical. Sequential scenarios can have order and background update bias.'},comparisonToUBlockOriginComplete:originCompared,scope:'Single synthetic fixture only; not a general superiority test',baselineProvided:!!process.env.MBLOCK_BASELINE,scenarios};
  await mkdir('test-results',{recursive:true});await writeFile(process.env.MBLOCK_BENCH_OUTPUT || 'test-results/benchmark.json',JSON.stringify(report,null,2));
- console.log(JSON.stringify(scenarios.map(x=>({label:x.label,extension:x.extension,median:x.median,processes:x.processes,heaps:x.heaps})),null,2));
+ console.log(JSON.stringify(scenarios.map(x=>({label:x.label,initializationAndWarmupMs:x.initializationAndWarmupMs,extension:x.extension,median:x.median,processes:x.processes,heaps:x.heaps})),null,2));
 }finally{await new Promise(r=>server.close(r));}
