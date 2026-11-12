@@ -42,7 +42,7 @@ The mission is to outperform uBlock Origin with reproducible evidence. **General
 
 The lists collected on November 12, 2026 still contain approximately 20,000 unsupported filters, including many scriptlets and procedural filters. mBlock therefore cannot be treated as equivalent. Lower CPU usage or fewer rules does not establish better blocking when functionality is omitted.
 
-See [measured uBO comparison](docs/BENCHMARK-2026-11-12.md): this fixture used less CPU/time but more memory. See the [audit](docs/AUDIT-0.3.0.md) and [validation/benchmark notes](docs/VALIDATION.md) (Portuguese technical reports). The benchmark refuses inactive blockers, records CPU/RAM/timing and checks blocking plus essential content. The controlled comparison uses a shared historical Chromium compatible with MV2 and MV3; it does not represent all current browsers or real websites.
+The [memory optimization](docs/MEMORY-2026-11-12.md) reduced total browser RSS by 6.6–8.0% versus the previous build while retaining lower CPU/load time than uBO in this fixture. See [measured uBO comparison](docs/BENCHMARK-2026-11-12.md): this fixture used less CPU/time but more memory. See the [audit](docs/AUDIT-0.3.0.md) and [validation/benchmark notes](docs/VALIDATION.md) (Portuguese technical reports). The benchmark refuses inactive blockers, records CPU/RAM/timing and checks blocking plus essential content. The controlled comparison uses a shared historical Chromium compatible with MV2 and MV3; it does not represent all current browsers or real websites.
 
 ## Privacy and limitations
 

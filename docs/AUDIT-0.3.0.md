@@ -59,3 +59,7 @@ Atualização automática já existia. Agora oferece intervalos, preserva idade 
 5. Publicar ganhos somente para os cenários medidos e manter os casos em que uBO vence.
 
 Referências primárias: [uBO 1.76.0](https://github.com/gorhill/uBlock/releases/tag/1.76.0), [sintaxe](https://github.com/gorhill/uBlock/wiki/Static-filter-syntax), [element picker](https://github.com/gorhill/uBlock/wiki/Element-picker), [atualização](https://github.com/gorhill/uBlock/wiki/Dashboard:-Filter-lists). O seletor e a atualização automática não são novidades em relação ao uBO.
+
+## Atualização de memória
+
+A [medição posterior](MEMORY-2026-11-12.md) compara o mesmo conjunto de listas antes/depois, em duas ordens. O compartilhamento de snapshots, a fila limitada e a gravação compacta das preferências de atualização reduziram RSS total em 6,6–8,0% e heap do worker em 55,4%, mantendo a vantagem de CPU/tempo sobre o uBO nesta fixture. RAM total continua maior que a do uBO. A validação passou a 45 testes Node, 3 Python e 35 verificações de navegador. Snapshots legados e recuperação após interrupção permanecem testados.

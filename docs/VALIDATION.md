@@ -37,3 +37,7 @@ A página local contém conteúdo essencial e 60 scripts de um domínio de publi
 - Não comparar mBlock ativo com um uBO MV2 desativado por Chromium moderno.
 
 Para alegar superioridade, ampliar corpus e navegadores, verificar conteúdo/quebras e privacidade, alternar a ordem e apresentar dispersão e diferenças de listas. Os resultados atuais devem ser descritos apenas no escopo medido.
+
+## Comparação de memória antes/depois
+
+O workflow também compila o commit 8db8963 com a mesma cópia das listas e executa duas rodadas em ordens inversas. `MBLOCK_PREVIOUS` aponta para esse pacote; `MBLOCK_BENCH_REVERSE=1` inverte a ordem. Os hashes e estatísticas dos dois builds mBlock devem coincidir. Os relatórios incluem consumo por processo e heap das extensões medido após as amostras de velocidade, sem GC forçado. Resultados e limites em [MEMORY-2026-11-12.md](MEMORY-2026-11-12.md).
