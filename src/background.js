@@ -274,7 +274,7 @@ async function handle(message, sender) {
     const rule = host + '##' + selector;
     if (!settings.customRules.split('\n').some(line => line.trim() === rule)) await changeSettings({ customRules:normalizeRules(settings.customRules.trimEnd() + '\n' + rule + '\n') });
     await api.scripting.insertCSS({target:{tabId:sender.tab.id,frameIds:[0]},css:':is(' + selector + '){display:none!important}',origin:'USER'});
-    await db.put('meta', 'picker:' + sender.tab.id, null);
+    await db.remove('meta', 'picker:' + sender.tab.id);
     event('element_filter_created', { host }); return {};
   });
   requireUI(sender);
@@ -286,9 +286,10 @@ async function handle(message, sender) {
       const policy = sitePolicy(settings, host);
       if (policy.paused || !policy.cosmetic) throw new Error('Ative a proteção e a ocultação por CSS neste site.');
       const token = crypto.randomUUID();
-      await db.put('meta', 'picker:' + tab.id, { token, host, until:Date.now() + 300000 });
       const keys = ['title','instruction','preview','save','again','cancel','failed'];
       if (!message.labels || !keys.every(k => typeof message.labels[k] === 'string' && message.labels[k].length < 400)) throw new Error('Mensagem inválida.');
+      await db.prunePickerSessions();
+      await db.put('meta', 'picker:' + tab.id, { token, host, until:Date.now() + 300000 });
       await bounded(api.scripting.executeScript({target:{tabId:tab.id,frameIds:[0]},world:'ISOLATED',func:installElementPicker,args:[token,Object.fromEntries(keys.map(k => [k,message.labels[k]]))]})); return {};
     }
     case 'site_policy': {
@@ -368,5 +369,5 @@ api.runtime.onMessage.addListener((message, sender, respond) => { handle(message
 api.runtime.onInstalled.addListener(() => { initialize().catch(() => {}); });
 api.runtime.onStartup.addListener(() => { initialize().catch(() => {}); });
 api.alarms.onAlarm.addListener(alarm => { (async () => { await initialize(); if (alarm.name === 'update' && settings.autoUpdate) await serial(updateLists); if (alarm.name === 'diagnostic') await expireDiagnostic(); })().catch(e => event('alarm_error', { error: errMessage(e) }, 'error')); });
-api.tabs.onRemoved.addListener(tabId => { if (activeDiagnostic?.tabId === tabId) { activeDiagnostic.until = 0; expireDiagnostic().catch(() => {}); } for (const key of cssByDocument.keys()) if (key.startsWith(tabId + ':')) cssByDocument.delete(key); });
+api.tabs.onRemoved.addListener(tabId => { db.remove('meta', 'picker:' + tabId).catch(() => {}); if (activeDiagnostic?.tabId === tabId) { activeDiagnostic.until = 0; expireDiagnostic().catch(() => {}); } for (const key of cssByDocument.keys()) if (key.startsWith(tabId + ':')) cssByDocument.delete(key); });
 initialize().catch(() => {});

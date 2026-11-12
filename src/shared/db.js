@@ -9,6 +9,22 @@ export function openDB() {
 }
 export async function get(store, key) { const db = await openDB(); return new Promise((resolve, reject) => { const r = db.transaction(store).objectStore(store).get(key); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); }); }
 export async function put(store, key, value) { const db = await openDB(); return new Promise((resolve, reject) => { const tx = db.transaction(store, 'readwrite'); tx.objectStore(store).put(value, key); tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); tx.onabort = () => reject(tx.error); }); }
+export async function remove(store, key) {
+  const database = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = database.transaction(store, 'readwrite'); tx.objectStore(store).delete(key);
+    tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); tx.onabort = () => reject(tx.error);
+  });
+}
+export async function prunePickerSessions(now = Date.now()) {
+  const database = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = database.transaction('meta', 'readwrite');
+    const request = tx.objectStore('meta').openCursor(IDBKeyRange.bound('picker:', 'picker:\uffff'));
+    request.onsuccess = () => { const cursor = request.result; if (!cursor) return; if (!cursor.value || cursor.value.until <= now) cursor.delete(); cursor.continue(); };
+    tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); tx.onabort = () => reject(tx.error);
+  });
+}
 export async function commitSnapshot(snapshot, previous, { cosmeticsChanged = true, rulesChanged = true } = {}) {
   const index = new Map();
   if (cosmeticsChanged) for (const item of snapshot.compiled.cosmetics) {
