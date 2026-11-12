@@ -391,9 +391,10 @@ async function handle(message, sender) {
       if (!host) throw new Error('Não há correção conhecida para este site.');
       const evidence = await siteEvidence(tab.id);
       const analysis = analyzeEvidence(evidence, settings);
-      if (!analysis.proposals.some(x => x.id === 'antiadblock-core-v1')) throw new Error('A assinatura conhecida não foi encontrada.');
-      await serial(() => changeSettings({ fixes: true }));
-      event('known_fix_enabled', { host, fix: 'antiadblock-core-v1', scope: 'global' }); return {};
+      if (!analysis.proposals.some(x => x.id === 'antiadblock-core-v2')) throw new Error('A assinatura conhecida não foi encontrada.');
+      await serial(() => changeSettings({ fixes: true, sites: { ...settings.sites, [host]: { ...settings.sites[host], fixes: true } } }));
+      await bounded(api.scripting.executeScript({ target: { tabId: tab.id, frameIds: [0] }, world: 'MAIN', files: ['resources/antiadblock-core-marker.js'] }));
+      event('known_fix_enabled', { host, fix: 'antiadblock-core-v2', scope: 'global', appliedToOpenTab: true }); return {};
     }
     case 'clear_logs': journal.clear(); await area.set({ journal: journal.toJSON() }); return {};
     case 'export': return exportReport();
