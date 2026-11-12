@@ -14,6 +14,10 @@ export class CosmeticCache {
     try {
       const value=await promise,bytes=128+2*(key.length+value.css.length);
       if(revision===this.revision&&bytes<=this.maxBytes){
+        // When the pending queue is full, duplicate loads may finish separately.
+        // Replacing that key must release its previous accounting first.
+        const previous=this.entries.get(key);
+        if(previous){this.bytes-=previous.bytes;this.entries.delete(key);}
         while(this.entries.size&&(this.entries.size>=this.maxEntries||this.bytes+bytes>this.maxBytes)){
           const oldest=this.entries.keys().next().value;this.bytes-=this.entries.get(oldest).bytes;this.entries.delete(oldest);
         }

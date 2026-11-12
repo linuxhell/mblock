@@ -16,3 +16,10 @@ test('an invalidated or failed lookup cannot populate a later generation',async(
  await assert.rejects(()=>cache.load('failure',async()=>{throw Error('offline');}),/offline/);assert.equal(cache.pending.size,0);
  assert.equal((await cache.load('failure',async()=>({css:'',selectors:0}))).selectors,0);
 });
+
+test('untracked parallel loads cannot double count a retained key',async()=>{
+ const cache=new CosmeticCache({maxPending:0,maxBytes:512});
+ await Promise.all([cache.load('a',async()=>({css:'first',selectors:1})),cache.load('a',async()=>({css:'second',selectors:1}))]);
+ assert.equal(cache.entries.size,1);assert.equal(cache.bytes,cache.entries.get('a').bytes);
+ assert.ok(cache.bytes<=512);assert.equal(cache.pending.size,0);
+});

@@ -2,6 +2,7 @@
 import { encodeSnapshot, decodeSnapshot, boundedWrites, updatePreferencesOnly } from './snapshot-storage.js';
 import { originsForRule, expandOrigins } from './provenance.js';
 import { nextConfigurationTime } from './control-state.js';
+import { cosmeticIndex, cosmeticKeys } from './cosmetic-index.js';
 let opening;
 export function openDB() {
   return opening ||= new Promise((resolve, reject) => {
@@ -130,10 +131,7 @@ export async function commitControls(plan) {
 }
 export async function commitSnapshot(snapshot, previous, { cosmeticsChanged = true, rulesChanged = true } = {}) {
   const metadata={at:snapshot.at,engineVersion:snapshot.engineVersion,settings:snapshot.settings,sources:snapshot.sources,stats:{...snapshot.compiled.stats,nativeRules:snapshot.rules.length},report:snapshot.compiled.report,target:snapshot.target,hasPrevious:!!previous};
-  const index = new Map();
-  if (cosmeticsChanged) for (const item of snapshot.compiled.cosmetics) {
-    for (const domain of (item.include.length ? item.include : [item.exception ? '!global' : '*'])) { if (!index.has(domain)) index.set(domain, []); index.get(domain).push(item); }
-  }
+  const index = cosmeticsChanged ? cosmeticIndex(snapshot.compiled.cosmetics) : new Map();
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(['meta', 'snapshots', 'cosmetics', 'rules'], 'readwrite');
@@ -160,8 +158,7 @@ export async function commitSnapshot(snapshot, previous, { cosmeticsChanged = tr
   });
 }
 export async function getCosmeticData(host, generic = true) {
-  const parts=host.split('.'),keys=generic?['*','!global']:['!global'];
-  while(parts.length>=2){keys.push(parts.join('.'));parts.shift();}
+  const keys=cosmeticKeys(host,generic);
   const db=await openDB();
   return new Promise((resolve,reject)=>{
     const tx=db.transaction(['cosmetics','meta']),store=tx.objectStore('cosmetics');
