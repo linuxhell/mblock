@@ -6,7 +6,6 @@ import { builtInRules } from './shared/fixes.js';
 import { fetchList } from './shared/fetch-lists.js';
 import * as db from './shared/db.js';
 import { readBundle } from './shared/bundle.js';
-import { packFilterText } from './shared/filter-text.js';
 import { analyzeEvidence } from './shared/assistant.js';
 import { BUILD_TARGET } from './shared/platform.js';
 import { syncSiteScripts, isYouTube, scriptTargetsHost } from './shared/site-scripts.js';
@@ -113,7 +112,7 @@ async function initialize() {
     }
     metadata = await db.get('meta', 'active');
     if (!metadata) {
-      const bundle = await readBundle(async file => (await fetch(api.runtime.getURL(file))).json(), {packText:packFilterText});
+      const bundle = await readBundle(async file => (await fetch(api.runtime.getURL(file))).json());
       await activate(snapshot(bundle.compiled, settings, bundle.sources, bundle.texts), null);
       event('installed', { version: VERSION, rules: metadata.stats.nativeRules });
     } else {

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import { encodeSnapshot, decodeSnapshot, boundedWrites, updatePreferencesOnly } from './snapshot-storage.js';
 import { originsForRule } from './provenance.js';
-import { unpackFilterTexts } from './filter-text.js';
 let opening;
 export function openDB() {
   return opening ||= new Promise((resolve, reject) => {
@@ -13,9 +12,8 @@ export function openDB() {
 async function rawGet(store, key) { const db = await openDB(); return new Promise((resolve, reject) => { const r = db.transaction(store).objectStore(store).get(key); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); }); }
 export async function get(store, key) {
   const record = await rawGet(store, key);
-  const snapshot = record?.storageFormat === 'shared-v1' ? decodeSnapshot(record, await rawGet('snapshots', record.dataKey)) : record;
-  if (snapshot?.compiled && Array.isArray(snapshot.texts)) snapshot.texts = await unpackFilterTexts(snapshot.texts);
-  return snapshot; // Existing installs need no destructive migration.
+  if (record?.storageFormat !== 'shared-v1') return record; // Existing installs need no destructive migration.
+  return decodeSnapshot(record, await rawGet('snapshots', record.dataKey));
 }
 function ensureData(store, encoded) {
   const request = store.getKey(encoded.record.dataKey);
