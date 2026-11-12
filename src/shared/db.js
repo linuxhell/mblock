@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-import { encodeSnapshot, decodeSnapshot, boundedWrites } from './snapshot-storage.js';
+import { encodeSnapshot, decodeSnapshot, boundedWrites, updatePreferencesOnly } from './snapshot-storage.js';
 let opening;
 export function openDB() {
   return opening ||= new Promise((resolve, reject) => {
@@ -55,6 +55,27 @@ export async function prunePickerSessions(now = Date.now()) {
     const request = tx.objectStore('meta').openCursor(IDBKeyRange.bound('picker:', 'picker:\uffff'));
     request.onsuccess = () => { const cursor = request.result; if (!cursor) return; if (!cursor.value || cursor.value.until <= now) cursor.delete(); cursor.continue(); };
     tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); tx.onabort = () => reject(tx.error);
+  });
+}
+export async function commitPreferences(patch) {
+  if (!updatePreferencesOnly(patch)) return null;
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(['meta','snapshots'], 'readwrite');
+    const active = tx.objectStore('snapshots').get('active'), metadata = tx.objectStore('meta').get('active');
+    let remaining = 2, result = null;
+    function ready() {
+      if (--remaining || active.result?.storageFormat !== 'shared-v1' || !metadata.result) return;
+      // Updating a download preference needs neither filter data nor native rules.
+      // Both the new configuration and its rollback are committed atomically.
+      const at = new Date().toISOString(), settings = {...active.result.settings,...patch};
+      tx.objectStore('snapshots').put(active.result, 'previous');
+      tx.objectStore('snapshots').put({...active.result,at,settings}, 'active');
+      result = {...metadata.result,at,settings,hasPrevious:true};
+      tx.objectStore('meta').put(result, 'active'); pruneData(tx);
+    }
+    active.onsuccess = metadata.onsuccess = ready;
+    tx.oncomplete = () => resolve(result); tx.onerror = () => reject(tx.error); tx.onabort = () => reject(tx.error);
   });
 }
 export async function commitSnapshot(snapshot, previous, { cosmeticsChanged = true, rulesChanged = true } = {}) {

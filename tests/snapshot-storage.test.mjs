@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { encodeSnapshot, decodeSnapshot, boundedWrites } from '../src/shared/snapshot-storage.js';
+import { encodeSnapshot, decodeSnapshot, boundedWrites, updatePreferencesOnly } from '../src/shared/snapshot-storage.js';
 test('immutable lists share one stored payload across settings and rollback', () => {
  const compiled={rules:[{id:1,action:{type:'block'},condition:{urlFilter:'ads'}}],provenance:[],cosmetics:[]};
  const original={at:'first',compiled,texts:[{id:'list',text:'ads'}],settings:{enabled:true},sources:[],rules:[...compiled.rules,{id:2,action:{type:'allow'}}]};
@@ -21,4 +21,9 @@ test('bulk writes keep at most 32 cloned requests pending and finish all records
  boundedWrites({abort(){aborted=true;}},operations());
  while(queue.length){const request=queue.shift();pending--;request.onsuccess();}
  assert.equal(written,10000);assert.equal(peak,32);assert.equal(pending,0);assert.equal(aborted,false);
+});
+
+test('only download preferences can bypass loading the filtering engine data', () => {
+ for(const patch of [{autoUpdate:false},{intervalHours:6},{autoUpdate:true,intervalHours:12}]) assert.equal(updatePreferencesOnly(patch),true);
+ for(const patch of [{},{enabled:false},{genericCosmetic:true},{autoUpdate:false,customRules:'ads'},{youtube:false},{sites:{}}]) assert.equal(updatePreferencesOnly(patch),false);
 });

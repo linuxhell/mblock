@@ -29,3 +29,8 @@ export function boundedWrites(transaction, operations, limit = 32) {
   }
   for (let i = 0; i < limit; i++) next();
 }
+
+export function updatePreferencesOnly(patch) {
+  const fields = Object.keys(patch);
+  return fields.length > 0 && fields.every(key => ['autoUpdate','intervalHours'].includes(key));
+}

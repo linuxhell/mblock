@@ -156,6 +156,13 @@ async function updateLists() {
   finally { updating = false; }
 }
 async function changeSettings(patch) {
+  const preferences = await db.commitPreferences(patch);
+  if (preferences) {
+    settings = preferences.settings; metadata = preferences;
+    await api.storage.local.set({ settings });
+    await api.alarms.clear('update'); await scheduleUpdate();
+    event('settings_changed', { keys:Object.keys(patch) }); return;
+  }
   const old = await db.get('snapshots', 'active');
   const next = { ...settings, ...patch };
   let sources = [...old.sources];
