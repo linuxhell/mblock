@@ -2,7 +2,6 @@
 // Local evidence classifier, NOT a generative AI model. Never claims certainty
 // from a visible warning alone, and never executes downloaded code.
 import { hostFromURL, domainMatches, sitePolicy } from './core.js';
-import { ANTIADBLOCK_CORE_REGEXES, builtInRules } from './fixes.js';
 import { YOUTUBE_PROFILE } from './youtube-profile.js';
 import { isYouTube } from './site-scripts.js';
 export function analyzeEvidence(evidence, settings, runtime = {}) {
@@ -13,10 +12,15 @@ export function analyzeEvidence(evidence, settings, runtime = {}) {
   else if ([...markers].some(x => x.startsWith('antiadblock-core'))) engines.push({ name: 'AntiAdblockCore family', confidence: 'medium', evidence: [...markers].filter(x => x.startsWith('antiadblock-core')), version: 'not verified' });
   if (markers.has('ad-inserter ai_adb_process_blocks')) engines.push({ name: 'WordPress Ad Inserter anti-adblock module', confidence: 'high', evidence: ['inline function signature: ai_adb_process_blocks'], version: 'not verified' });
   if (scripts.some(s => /\/(?:fuckadblock|blockadblock)(?:[.-][\d.]+)?(?:\.min)?\.js(?:[?#]|$)/i.test(s))) engines.push({ name: 'BlockAdBlock / FuckAdBlock family', confidence: 'medium', evidence: ['external script filename signature'], version: 'not verified' });
-  const knownRules = builtInRules({});
-  const loader = scripts.find(s => ANTIADBLOCK_CORE_REGEXES.some(regexFilter => new RegExp(regexFilter).test(s)));
   const proposals = [];
-  if (host && core && loader) proposals.push({ id: 'antiadblock-core-v1', mechanism: 'rotating external loader with fallback', kind: 'packaged_redirect', confidence: 'high', enabled: settings.fixes !== false, rules: knownRules, validation: 'observed AntiAdblockCore markers plus reviewed rotating loader signature; global packaged redirect; fixture regression test; live behavior can vary', automaticallyGenerated: false });
+  if (host && core) {
+    const policy = sitePolicy({ enabled: true, genericCosmetic: false, ...settings }, host);
+    const trace = evidence.antiAdblockCore || {};
+    const configured = settings.fixes !== false && policy.fixes !== false;
+    const learned = Array.isArray(settings.antiAdblockCoreRules) && settings.antiAdblockCoreRules.some(x => x?.siteHost === host && x?.loaderUrl === trace.loaderUrl);
+    const verified = trace.fixState === 'redirected' || trace.fixState === 'overlay-removed';
+    proposals.push({ id: 'antiadblock-core-v3', mechanism: 'learned native loader redirect with document-start recovery fallback', kind: 'packaged_repair', confidence: 'high', enabled: verified, configured, learned, fixState: trace.fixState || 'not-run', loaderObserved: !!trace.loaderUrl, available: !policy.paused, validation: 'AntiAdblockCore markers observed; enabled only after redirect or overlay suppression is verified in the document', automaticallyGenerated: false });
+  }
   let youtube;
   if (isYouTube(host)) {
     const profile = runtime.youtubeProfile || YOUTUBE_PROFILE, policy = sitePolicy({ enabled: true, genericCosmetic: false, ...settings }, host);
@@ -24,5 +28,5 @@ export function analyzeEvidence(evidence, settings, runtime = {}) {
     youtube = { configured: settings.youtube !== false && policy.youtube && !policy.paused, registered: runtime.youtubeRegistered ?? false, applied: runtime.youtubePlayback?.active === true && runtime.youtubePlayback?.profileHash === profile.hash, profile: profile.id, profileHash: profile.hash, packagedFilters: profile.count, scope: 'top_frame', player: runtime.youtubePlayer || null, playback: runtime.youtubePlayback || null };
     if (profile.count) proposals.push({ id: 'youtube-v1', kind: 'packaged_scriptlets', enabled: youtube.configured && youtube.registered && youtube.applied, available: !policy.paused, confidence: 'high', automaticallyGenerated: false, validation: 'packaged upstream filters and guarded playback recovery; fixture tests; account-specific live results can vary' });
   }
-  return { schema: 'mblock-site-analysis-v2', engine: 'local-heuristics', generativeAI: false, host, engines, proposals, warningPresent: !!evidence.warningPresent, ...(youtube ? { youtube } : {}), canApplyKnownFix: proposals.some(p => !p.enabled && p.available !== false), canAutomaticallyRepair: !youtube && proposals.some(p => !p.enabled), unknownMechanism: engines.length === 0, nextStep: youtube ? (!youtube.configured ? 'enable protection and the packaged YouTube module' : !youtube.applied ? 'apply the known fix to this open tab or open YouTube in a new tab' : 'if ads persist, export diagnostics including the profile hash and playback counters') : proposals.length ? 'enable known packaged fix, reload and compare diagnostics' : 'collect a diagnostic and review a new site-specific rule; do not apply an unverified guess', limitations: ['client-visible signals only', 'a missing anti-adblock warning does not mean ads are blocked', 'vendor/version can be hidden or imitated', 'no generative AI or arbitrary rule generation in this version'] };
+  return { schema: 'mblock-site-analysis-v2', engine: 'local-heuristics', generativeAI: false, host, engines, proposals, warningPresent: !!evidence.warningPresent, ...(youtube ? { youtube } : {}), canApplyKnownFix: proposals.some(p => !p.enabled && p.available !== false), canAutomaticallyRepair: !youtube && proposals.some(p => !p.enabled), unknownMechanism: engines.length === 0, nextStep: youtube ? (!youtube.configured ? 'enable protection and the packaged YouTube module' : !youtube.applied ? 'apply the known fix to this open tab or open YouTube in a new tab' : 'if ads persist, export diagnostics including the profile hash and playback counters') : proposals.length ? (proposals[0].enabled ? 'known fix verified in this document' : proposals[0].configured ? 'known fix configured but not verified; apply repair to learn and redirect the observed loader' : 'enable and apply the known packaged fix') : 'collect a diagnostic and review a new site-specific rule; do not apply an unverified guess', limitations: ['client-visible signals only', 'a missing anti-adblock warning does not mean ads are blocked', 'vendor/version can be hidden or imitated', 'no generative AI or arbitrary rule generation in this version'] };
 }

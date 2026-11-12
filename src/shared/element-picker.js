@@ -14,10 +14,23 @@ export function installElementPicker(token, labels) {
   const description = document.createElement('p'); description.textContent = labels.instruction;
   const field = document.createElement('textarea'); field.readOnly = true; field.rows = 3; field.setAttribute('aria-label', labels.title);
   const outline = document.createElement('div'); outline.id = 'outline'; outline.hidden = true;
-  const previewStyle = document.createElement('style');
   const buttons = {};
   for (const name of ['preview', 'save', 'again', 'cancel']) { const b = document.createElement('button'); b.textContent = labels[name]; buttons[name] = b; }
   panel.append(heading, description, field, ...Object.values(buttons)); shadow.append(style, outline, panel); document.documentElement.append(host);
+  function visualTarget(element) {
+    if (!(element instanceof Element) || element.getRootNode() !== document) return element;
+    let best = element, node = element;
+    for (let depth = 0; node && depth < 8 && node !== document.documentElement; depth++, node = node.parentElement) {
+      if (!(node instanceof Element) || /^(HTML|BODY|HEAD)$/.test(node.tagName)) break;
+      const style = getComputedStyle(node), rect = node.getBoundingClientRect();
+      const z = Number.parseInt(style.zIndex, 10);
+      const modalLike = node.getAttribute('role') === 'dialog' || node.getAttribute('aria-modal') === 'true' ||
+        style.position === 'fixed' || style.position === 'sticky' || Number.isFinite(z) && z >= 1000;
+      const visibleBox = rect.width >= 120 && rect.height >= 80;
+      if (modalLike && visibleBox) best = node;
+    }
+    return best;
+  }
   function candidate(element) {
     if (!(element instanceof Element) || element.getRootNode() !== document || /^(HTML|BODY|HEAD)$/.test(element.tagName)) return '';
     const parts = []; let node = element;
@@ -40,33 +53,48 @@ export function installElementPicker(token, labels) {
     const r = element.getBoundingClientRect(); outline.hidden = false;
     Object.assign(outline.style, { left:r.left+'px', top:r.top+'px', width:r.width+'px', height:r.height+'px' });
   }
-  function move(e) { if (!chosen && !e.composedPath().includes(host)) paint(e.target); }
+  function move(e) { if (!chosen && !e.composedPath().includes(host)) paint(visualTarget(e.target)); }
   function click(e) {
     if (e.composedPath().includes(host)) return;
     e.preventDefault(); e.stopImmediatePropagation(); if (!e.isTrusted || chosen) return;
-    const result = candidate(e.target); if (!result) return;
-    chosen = e.target; selector = result; field.value = location.hostname + '##' + selector; buttons.preview.disabled = buttons.save.disabled = false; paint(chosen);
+    const target = visualTarget(e.target); const result = candidate(target); if (!result) return;
+    chosen = target; selector = result; field.value = location.hostname + '##' + selector; buttons.preview.disabled = buttons.save.disabled = false; paint(chosen);
+  }
+  async function setPreview(enabled) {
+    if (!selector) return false;
+    const response = await api.runtime.sendMessage({ type:'picker_preview', token, selector, enabled });
+    if (!response?.ok) throw Error(response?.error || labels.failed);
+    previewing = enabled;
+    outline.hidden = enabled;
+    if (!enabled) paint(chosen);
+    return true;
   }
   function close() {
     if (closed) return; closed = true;
-    clearTimeout(expiry); previewStyle.remove(); host.remove();
+    clearTimeout(expiry); if (previewing && selector) api.runtime.sendMessage({ type:'picker_preview', token, selector, enabled:false }).catch?.(()=>{}); host.remove();
     window.removeEventListener('pointermove', move, true); window.removeEventListener('click', click, true); window.removeEventListener('keydown', key, true);
     window.removeEventListener('pagehide', close); window.removeEventListener('scroll', reposition, true); window.removeEventListener('resize', reposition);
     if (globalThis.__mblockPickerClose === close) delete globalThis.__mblockPickerClose;
   }
   function key(e) { if (e.key === 'Escape' && !saving) { e.preventDefault(); close(); } }
   function reposition() { if (chosen && !previewing) paint(chosen); else outline.hidden = true; }
-  buttons.preview.onclick = () => {
-    previewing = !previewing;
-    if (previewing) { previewStyle.textContent = ':is(' + selector + '){display:none!important}'; document.documentElement.append(previewStyle); outline.hidden = true; }
-    else { previewStyle.remove(); paint(chosen); }
+  buttons.preview.onclick = async () => {
+    if (!selector || saving) return;
+    buttons.preview.disabled = true;
+    try { await setPreview(!previewing); }
+    catch (error) { description.textContent = labels.failed + ' ' + String(error.message).slice(0, 200); }
+    finally { if (!closed) buttons.preview.disabled = false; }
   };
-  buttons.again.onclick = () => { previewStyle.remove(); chosen = null; selector = ''; previewing = false; field.value = ''; buttons.preview.disabled = buttons.save.disabled = true; outline.hidden = true; };
+  buttons.again.onclick = async () => {
+    if (previewing && selector) try { await setPreview(false); } catch {}
+    chosen = null; selector = ''; previewing = false; field.value = ''; buttons.preview.disabled = buttons.save.disabled = true; outline.hidden = true;
+  };
   buttons.cancel.onclick = close;
   buttons.save.onclick = async e => {
     if (!e.isTrusted || saving || !selector) return;
     saving = true; Object.values(buttons).forEach(b => b.disabled = true);
     try {
+      if (previewing) await setPreview(false);
       const response = await api.runtime.sendMessage({ type:'picker_save', token, selector });
       if (!response?.ok) throw Error(response?.error || labels.failed);
       close();

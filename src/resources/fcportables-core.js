@@ -1,5 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Satisfy the reviewed AntiAdblockCore loader success check without starting
-// its overlay or fallback request loop. This resource is only reached through
-// the narrow packaged AntiAdblockCore URL signatures in fixes.js.
-(() => { window.__tlm = true; window.__tlx = true; })();
+// Packaged AntiAdblockCore replacement. No remote code is executed.
+(() => {
+  try {
+    globalThis.__tlm = true;
+    globalThis.__tlx = true;
+    globalThis.AABC_DETECTION = { detected: false, blockerType: null, path: 'MBLOCK_REDIRECT', browser: navigator.userAgent };
+    globalThis.AABC_ON_DETECT = () => {};
+    document.documentElement?.setAttribute('data-mblock-aabc-state', 'redirected');
+  } catch {}
+})();

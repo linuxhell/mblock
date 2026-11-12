@@ -24,8 +24,11 @@
     const signal = phrases.find(s => text.includes(s)) || '';
     const markers = [];
     for (const [selector, name] of [['script#antiadblock-core-js', 'antiadblock-core loader'], ['meta[name="antiadblockcore-verification"]', 'antiadblock-core meta'], ['[id*="adblock"][role="dialog"]', 'adblock dialog']]) if (document.querySelector(selector)) markers.push(name);
+    const loader = document.querySelector('script#antiadblock-core-js');
+    let loaderHost = ''; try { loaderHost = loader?.src ? new URL(loader.src).hostname : ''; } catch {}
+    const antiAdblockCore = { loaderPresent: !!loader, metaPresent: !!document.querySelector('meta[name="antiadblockcore-verification"]'), loaderHost, fixState: document.documentElement?.getAttribute('data-mblock-aabc-state') || 'not-run', overlayRemovals: Math.max(0, Number(document.documentElement?.getAttribute('data-mblock-aabc-overlay-removals')) || 0) };
     const nav = performance.getEntriesByType('navigation')[0]; taskMs += performance.now() - start;
-    send('page_diagnostic', { payload: { antiAdblockSignal: !!signal, signal, markers, resourceErrors: errors, timings: { domContentLoaded: Math.round(nav?.domContentLoadedEventEnd || 0), load: Math.round(nav?.loadEventEnd || 0), contentTaskMs: Number(taskMs.toFixed(2)) } } });
+    send('page_diagnostic', { payload: { antiAdblockSignal: !!signal, signal, markers, antiAdblockCore, resourceErrors: errors, timings: { domContentLoaded: Math.round(nav?.domContentLoadedEventEnd || 0), load: Math.round(nav?.loadEventEnd || 0), contentTaskMs: Number(taskMs.toFixed(2)) } } });
   }
   function disable() {
     diagnostic = false; clearTimeout(stopTimer); scanTimers.forEach(clearTimeout); scanTimers = [];
