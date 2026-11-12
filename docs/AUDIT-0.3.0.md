@@ -17,6 +17,7 @@ Base auditada: `2a61f02eee7df4bae025dd7a79a888bef20a0f13` (0.2.1). Revisão de c
 | Restauração de scriptlets condicionada à mudança DNR | Falha após modificar scripts poderia deixá-los com outra configuração | Restaurar registro de scripts mesmo quando DNR não muda |
 | Domínio simples tratado como substring de URL | Diferença de semântica frente ao uBO, com possíveis falsos positivos | Converter hostname simples em âncora de domínio |
 | `denyallow` e `_` recusados | Menor cobertura da sintaxe das listas | Compilar denyallow apenas com contexto positivo e preservar todas as restrições; aceitar placeholders |
+| Apenas três regras estáticas de emergência na primeira inicialização | Proteção parcial enquanto o worker e o banco iniciavam | Empacotar o conjunto padrão completo como bootstrap nativo, desativado após ativação dinâmica |
 | ZIP de fontes/Firefox sem assinatura no empacotamento | Assets fora da política de distribuição solicitada | Somente Chrome/Edge por padrão; XPI Mozilla da mesma versão para release completa |
 
 ## Novos recursos e fronteiras

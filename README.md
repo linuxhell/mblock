@@ -6,7 +6,7 @@ Bloqueador para Chrome, Edge e Firefox, com regras nativas Manifest V3, controle
 
 ## O que oferece
 
-- Bloqueio de anúncios e rastreadores com `declarativeNetRequest`.
+- Bloqueio de anúncios e rastreadores com `declarativeNetRequest`, incluindo as regras padrão empacotadas para proteger a primeira inicialização antes de o worker terminar.
 - **Bloquear elemento** no popup: clique, confira a prévia e salve uma regra CSS somente para o domínio atual. Esc ou Cancelar desfaz a prévia. A regra persiste após recarregar; remova-a em **Minhas regras** para desfazer permanentemente. O seletor funciona no documento principal; frames e Shadow DOM não são selecionáveis nesta versão.
 - Atualização automática de listas, ativada por padrão, com intervalo de **1, 6, 12, 24 ou 48 horas**. Listas antigas são verificadas após iniciar; filtros com hashes iguais reutilizam a compilação.
 - Atualizações transacionais e restauração da configuração anterior. Uma lista inválida não substitui parcialmente as regras.

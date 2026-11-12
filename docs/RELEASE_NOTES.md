@@ -1,5 +1,6 @@
 mBlock 0.3.0
 
+- Proteção nativa com o conjunto padrão completo na primeira inicialização, antes do término do worker.
 - Removido o rótulo alfa; isso não certifica superioridade ao uBlock Origin.
 - Seletor visual de elementos com prévia, cancelamento e regras persistentes por domínio.
 - Atualização automática configurável em 1, 6, 12, 24 ou 48 horas; restauração do agendamento conforme a idade das listas.

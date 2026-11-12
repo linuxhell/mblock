@@ -6,7 +6,7 @@ An ad and tracker blocker for Chrome, Edge and Firefox using native Manifest V3 
 
 ## Features
 
-- Native network blocking through `declarativeNetRequest`.
+- Native network blocking through `declarativeNetRequest`, including a packaged default ruleset that protects first startup before worker initialization completes.
 - **Block element** in the popup: click an element, preview and save a CSS filter scoped to the current hostname. Esc or Cancel restores the preview. Filters persist across reloads; delete them in **My filters** to undo permanently. The picker supports the top document, excluding frames and Shadow DOM.
 - Automatic filter updates enabled by default, with **1, 6, 12, 24 or 48 hour** intervals. Stale lists are checked after startup; identical hashes reuse compiled filters.
 - Transactional updates, previous-configuration rollback and retention of existing rules when a list fails validation.

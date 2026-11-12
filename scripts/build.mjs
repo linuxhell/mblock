@@ -25,7 +25,9 @@ for (const target of ['chrome', 'edge', 'firefox']) {
   }
   const profile = await buildYouTube(texts, target, dir);
   const compiled = compileLists(texts, { target, maxRules: 29800, packagedFilters: profile.rules });
-  const bootstrap = [{ id: 1, priority: 10, action: { type: 'block' }, condition: { requestDomains: ['doubleclick.net', 'googlesyndication.com', 'adnxs.com', 'adsrvr.org', 'popads.net'], excludedResourceTypes: ['main_frame'] } }, ...builtInRules({}).map((r, i) => ({ ...r, id: i + 2 }))];
+  // Full native protection is available before the worker finishes first-install
+  // initialization. Disable this static snapshot only after dynamic activation.
+  const bootstrap = [...compiled.rules, ...builtInRules({})].map((rule, i) => ({ ...rule, id:i + 1 }));
   const manifest = { ...common, background: target === 'firefox' ? { scripts: ['background.js'], type: 'module' } : { service_worker: 'background.js', type: 'module' } };
   if (target === 'firefox') manifest.browser_specific_settings = { gecko: { id: 'mblock@linuxhell.github.io', strict_min_version: '142.0', data_collection_permissions: { required: ['none'] } } };
   else manifest.minimum_chrome_version = '121';
