@@ -39,3 +39,11 @@ export function controlRules(settings) {
   }
   return rules;
 }
+
+// Compare one rule at a time. Serializing both complete rulesets creates large
+// temporary strings even when a length mismatch already proves they differ.
+export function sameRules(left, right) {
+  if (left.length !== right.length) return false;
+  for (let i = 0; i < left.length; i++) if (stable(left[i]) !== stable(right[i])) return false;
+  return true;
+}

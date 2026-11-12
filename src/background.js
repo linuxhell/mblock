@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-import { DEFAULT_SETTINGS, hostFromURL, validHost, sitePolicy, controlRules, redactURL, RingBuffer, domainMatches, stable } from './shared/core.js';
+import { DEFAULT_SETTINGS, hostFromURL, validHost, sitePolicy, controlRules, redactURL, RingBuffer, domainMatches, sameRules } from './shared/core.js';
 import { SOURCES, LIMITS, VERSION } from './shared/sources.js';
 import { compileLists, cosmeticSelectors, safeSelector } from './shared/compiler.js';
 import { builtInRules } from './shared/fixes.js';
@@ -73,7 +73,7 @@ async function installSnapshot(next, previous, saveSettings = true) {
   await db.put('meta', 'pending', next);
   let applied = false;
   try {
-    if (stable(oldRules) !== stable(next.rules)) {
+    if (!sameRules(oldRules, next.rules)) {
       await dnr.updateDynamicRules({ removeRuleIds: oldRules.map(r => r.id), addRules: next.rules });
       applied = true;
     }
